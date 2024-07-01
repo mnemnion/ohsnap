@@ -1,6 +1,6 @@
 const std = @import("std");
 const Fluent = @import("Fluent");
-// const pretty = @import("pretty");
+const pretty = @import("pretty");
 const testing = std.testing;
 
 export fn add(a: i32, b: i32) i32 {
@@ -16,4 +16,11 @@ test "fluent integration" {
     while (iter.next()) |m| {
         std.debug.print("{s}\n", .{m});
     }
+}
+
+test "pretty integration" {
+    const alloc = std.testing.allocator;
+    const dumped = try pretty.dump(alloc, .{ 1, 2, 3 }, .{});
+    defer alloc.free(dumped);
+    std.debug.print("{s}\n", .{dumped});
 }

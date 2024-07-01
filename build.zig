@@ -41,6 +41,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     })) |pretty_dep| {
         lib.root_module.addImport("pretty", pretty_dep.module("pretty"));
+        lib_unit_tests.root_module.addImport("pretty", pretty_dep.module("pretty"));
     }
 
     // Similar to creating the run step earlier, this exposes a `test` step to
