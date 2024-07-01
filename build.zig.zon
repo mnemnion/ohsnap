@@ -28,6 +28,10 @@
             .url = "https://github.com/mnemnion/Fluent/archive/refs/tags/2.1.0-test-5.tar.gz",
             .hash = "12201fe9215c050185c6f02358d5dfb0c363080356ce1d995f4e6ada5d42bc6ed4b9",
         },
+        .pretty = .{
+            .url = "https://github.com/timfayz/pretty/archive/refs/tags/v0.10.2.tar.gz",
+            .hash = "12201325c0651a8cc167d1d3bd07a71aa3b87b91065d45a64298a3e1d5716d62ed85",
+        },
     },
     .paths = .{
         "build.zig",
