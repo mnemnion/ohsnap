@@ -82,6 +82,14 @@ pub fn build(b: *std.Build) void {
 
     const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
 
+    if (b.lazyDependency("Fluent", .{
+        .target = target,
+        .optimize = optimize,
+    })) |fluent_dep| {
+        exe.root_module.addImport("Fluent", fluent_dep.module("Fluent"));
+        exe_unit_tests.root_module.addImport("Fluent", fluent_dep.module("Fluent"));
+    }
+
     // Similar to creating the run step earlier, this exposes a `test` step to
     // the `zig build --help` menu, providing a way for the user to request
     // running the unit tests.
