@@ -56,9 +56,6 @@ test "init regex" {
         const start, const len = .{ iter.index - found.items.len, found.items.len };
         std.debug.print("found at: {d} length {d} {}\n", .{ start, len, found });
     }
-
-    const found = Fluent.init(haystack).find(.regex, ignore_regex_string);
-    std.debug.print("with find {?}\n", .{found});
 }
 
 pub const Snap = struct {
@@ -96,7 +93,12 @@ pub const Snap = struct {
 
     /// Compare the snapshot with a formatted string.
     pub fn diff_fmt(snapshot: *const Snap, args: anytype) !void {
-        const got = try pretty.dump(testing.allocator, args);
+        const got = get: {
+            if (snapshot.pretty) // TODO look into options here
+                break :get try pretty.dump(testing.allocator, args, .{})
+            else
+                break :get try std.fmt.allocPrint(testing.allocator, "{any}", args);
+        };
         defer std.testing.allocator.free(got);
 
         try snapshot.diff(got);
@@ -147,13 +149,13 @@ pub const Snap = struct {
         var file_text_updated = try std.ArrayList(u8).initCapacity(allocator, file_text.len);
 
         const line_zero_based = snapshot.location.line - 1;
-        const range = snap_range(file_text, line_zero_based);
+        const range = snapRange(file_text, line_zero_based);
 
         const snapshot_prefix = file_text[0..range.start];
         const snapshot_text = file_text[range.start..range.end];
         const snapshot_suffix = file_text[range.end..];
 
-        const indent = get_indent(snapshot_text);
+        const indent = getIndent(snapshot_text);
 
         try file_text_updated.appendSlice(snapshot_prefix);
         {
@@ -252,7 +254,7 @@ const Range = struct { start: usize, end: usize };
 /// While we expect to find a snapshot after a given line, this is not guaranteed (the file could
 /// have been modified between compilation and running the test), but should be rare enough to
 /// just fail with an assertion.
-fn snap_range(text: []const u8, src_line: u32) Range {
+fn snapRange(text: []const u8, src_line: u32) Range {
     var offset: usize = 0;
     var line_number: u32 = 0;
 
@@ -268,7 +270,7 @@ fn snap_range(text: []const u8, src_line: u32) Range {
             try testing.expect(false);
         }
         if (line_number == src_line + 1) {
-            if (!is_multiline_string(line)) {
+            if (!isMultilineString(line)) {
                 std.debug.print(
                     "Expected multiline string `\\\\` on line {d}.\n",
                     .{line_number + 1},
@@ -282,7 +284,7 @@ fn snap_range(text: []const u8, src_line: u32) Range {
 
     lines = std.mem.split(u8, text[snap_start..], "\n");
     const snap_end = while (lines.next()) |line| {
-        if (!is_multiline_string(line)) {
+        if (!isMultilineString(line)) {
             break offset;
         }
         offset += line.len + 1; // 1 for \n
@@ -291,7 +293,7 @@ fn snap_range(text: []const u8, src_line: u32) Range {
     return Range{ .start = snap_start, .end = snap_end };
 }
 
-fn is_multiline_string(line: []const u8) bool {
+fn isMultilineString(line: []const u8) bool {
     for (line, 0..) |c, i| {
         switch (c) {
             ' ' => {},
@@ -302,7 +304,7 @@ fn is_multiline_string(line: []const u8) bool {
     return false;
 }
 
-fn get_indent(line: []const u8) []const u8 {
+fn getIndent(line: []const u8) []const u8 {
     for (line, 0..) |c, i| {
         if (c != ' ') return line[0..i];
     }
