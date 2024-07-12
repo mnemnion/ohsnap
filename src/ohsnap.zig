@@ -15,6 +15,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const Fluent = @import("Fluent");
 const pretty = @import("pretty");
+const diffz = @import("diffz");
 const testing = std.testing;
 
 const assert = std.debug.assert;
@@ -23,6 +24,18 @@ const SourceLocation = std.builtin.SourceLocation;
 // Intended for use in test mode only.
 comptime {
     assert(builtin.is_test);
+}
+
+const Diff = diffz;
+
+test "ez diff" {
+    const alloc = std.testing.allocator;
+    var d = Diff{};
+    var out = try d.diff(alloc, "abcd", "cdef", false);
+    defer out.deinit(alloc);
+    const dumped = try pretty.dump(alloc, out, .{});
+    defer alloc.free(dumped);
+    std.debug.print("{s}\n", .{dumped});
 }
 
 //| Cut code also from TigerBeetle: https://github.com/tigerbeetle/tigerbeetle/blob/main/src/stdx.zig

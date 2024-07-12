@@ -44,6 +44,14 @@ pub fn build(b: *std.Build) void {
         lib_unit_tests.root_module.addImport("pretty", pretty_dep.module("pretty"));
     }
 
+    if (b.lazyDependency("diffz", .{
+        .target = target,
+        .optimize = optimize,
+    })) |diffz_dep| {
+        lib.root_module.addImport("diffz", diffz_dep.module("diffz"));
+        lib_unit_tests.root_module.addImport("diffz", diffz_dep.module("diffz"));
+    }
+
     // Similar to creating the run step earlier, this exposes a `test` step to
     // the `zig build --help` menu, providing a way for the user to request
     // running the unit tests.

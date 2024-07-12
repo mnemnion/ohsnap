@@ -32,12 +32,16 @@
             .url = "https://github.com/timfayz/pretty/archive/refs/tags/v0.10.2.tar.gz",
             .hash = "12201325c0651a8cc167d1d3bd07a71aa3b87b91065d45a64298a3e1d5716d62ed85",
         },
+        .diffz = .{
+            .url = "https://github.com/mnemnion/diffz/archive/refs/tags/v0.0.2-rc1.tar.gz",
+            .hash = "12207c3f829d093c2dfedb97df517f9b79c0e19f538dbd033f6c0fef8d20cd3836ae",
+        },
     },
     .paths = .{
         "build.zig",
         "build.zig.zon",
         "src",
-        // For example...
+        ".gitignore",
         //"LICENSE",
         //"README.md",
     },
