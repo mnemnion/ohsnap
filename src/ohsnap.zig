@@ -15,7 +15,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const Fluent = @import("Fluent");
 const pretty = @import("pretty");
-const diffz = @import("diffz");
+const DiffMatchPatch = @import("diffz");
 const testing = std.testing;
 
 const assert = std.debug.assert;
@@ -24,18 +24,6 @@ const SourceLocation = std.builtin.SourceLocation;
 // Intended for use in test mode only.
 comptime {
     assert(builtin.is_test);
-}
-
-const Diff = diffz;
-
-test "ez diff" {
-    const alloc = std.testing.allocator;
-    var d = Diff{};
-    var out = try d.diff(alloc, "abcd", "cdef", false);
-    defer out.deinit(alloc);
-    const dumped = try pretty.dump(alloc, out, .{});
-    defer alloc.free(dumped);
-    std.debug.print("{s}\n", .{dumped});
 }
 
 //| Cut code also from TigerBeetle: https://github.com/tigerbeetle/tigerbeetle/blob/main/src/stdx.zig
@@ -59,11 +47,27 @@ pub fn cut(haystack: []const u8, needle: []const u8) ?Cut {
     };
 }
 
+const ignore_regex_string = "<\\^.+\\$>";
+
+test "init regex" {
+    const haystack = "012345678<^[a-d0-9]+$> blah blah";
+    var iter = Fluent.match(ignore_regex_string, haystack);
+    while (iter.next()) |found| {
+        const start, const len = .{ iter.index - found.items.len, found.items.len };
+        std.debug.print("found at: {d} length {d} {}\n", .{ start, len, found });
+    }
+
+    const found = Fluent.init(haystack).find(.regex, ignore_regex_string);
+    std.debug.print("with find {?}\n", .{found});
+}
+
 pub const Snap = struct {
     location: SourceLocation,
     text: []const u8,
     update_this: bool = false,
+    pretty: bool = true,
 
+    // const ignore_regex = Fluent.match(ignore_regex_string);
     /// Creates a new Snap.
     ///
     /// For the update logic to work, *must* be formatted as:
@@ -77,6 +81,10 @@ pub const Snap = struct {
         return Snap{ .location = location, .text = text };
     }
 
+    pub fn snapfmt(location: SourceLocation, text: []const u8) Snap {
+        return Snap{ .location = location, .text = text, .pretty = false };
+    }
+
     /// Builder-lite method to update just this particular snapshot.
     pub fn update(snapshot: *const Snap) Snap {
         return Snap{
@@ -87,8 +95,8 @@ pub const Snap = struct {
     }
 
     /// Compare the snapshot with a formatted string.
-    pub fn diff_fmt(snapshot: *const Snap, comptime fmt: []const u8, fmt_args: anytype) !void {
-        const got = try std.fmt.allocPrint(std.testing.allocator, fmt, fmt_args);
+    pub fn diff_fmt(snapshot: *const Snap, args: anytype) !void {
+        const got = try pretty.dump(testing.allocator, args);
         defer std.testing.allocator.free(got);
 
         try snapshot.diff(got);
@@ -120,7 +128,8 @@ pub const Snap = struct {
         if (false) {
             std.debug.print(
                 \\To accept this update, replace the start of the first line
-                \\with <!update>
+                \\with:
+                \\<!update>
                 \\
             ,
                 .{},
@@ -250,10 +259,22 @@ fn snap_range(text: []const u8, src_line: u32) Range {
     var lines = std.mem.split(u8, text, "\n");
     const snap_start = while (lines.next()) |line| : (line_number += 1) {
         if (line_number == src_line) {
-            assert(std.mem.indexOf(u8, line, "@src()") != null);
+            if (std.mem.indexOf(u8, line, "@src()") == null) {
+                std.debug.print(
+                    "Expected snapshot @src() on line {d}.\n",
+                    .{line_number + 1},
+                );
+            }
+            try testing.expect(false);
         }
         if (line_number == src_line + 1) {
-            assert(is_multiline_string(line));
+            if (!is_multiline_string(line)) {
+                std.debug.print(
+                    "Expected multiline string `\\\\` on line {d}.\n",
+                    .{line_number + 1},
+                );
+                try testing.expect(false);
+            }
             break offset;
         }
         offset += line.len + 1; // 1 for \n
