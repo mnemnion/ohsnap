@@ -64,7 +64,8 @@ pub const Snap = struct {
     update_this: bool = false,
     pretty: bool = true,
 
-    // const ignore_regex = Fluent.match(ignore_regex_string);
+    const allocator = std.testing.allocator;
+
     /// Creates a new Snap.
     ///
     /// For the update logic to work, *must* be formatted as:
@@ -82,22 +83,13 @@ pub const Snap = struct {
         return Snap{ .location = location, .text = text, .pretty = false };
     }
 
-    /// Builder-lite method to update just this particular snapshot.
-    pub fn update(snapshot: *const Snap) Snap {
-        return Snap{
-            .location = snapshot.location,
-            .text = snapshot.text,
-            .update_this = true,
-        };
-    }
-
     /// Compare the snapshot with a formatted string.
-    pub fn diff_fmt(snapshot: *const Snap, args: anytype) !void {
+    pub fn expectEqualTo(snapshot: *const Snap, args: anytype) !void {
         const got = get: {
             if (snapshot.pretty) // TODO look into options here
-                break :get try pretty.dump(testing.allocator, args, .{})
+                break :get try pretty.dump(allocator, args, .{})
             else
-                break :get try std.fmt.allocPrint(testing.allocator, "{any}", args);
+                break :get try std.fmt.allocPrint(allocator, "{any}", args);
         };
         defer std.testing.allocator.free(got);
 
@@ -106,47 +98,35 @@ pub const Snap = struct {
 
     /// Compare the snapshot with a given string.
     pub fn diff(snapshot: *const Snap, got: []const u8) !void {
-        if (equalExcludingIgnored(got, snapshot.text)) return;
-        // TODO add diff library, use here
-        std.debug.print(
-            \\Snapshot differs.
-            \\Want:
-            \\----
-            \\{s}
-            \\----
-            \\Got:
-            \\----
-            \\{s}
-            \\----
-            \\
-        ,
-            .{
-                snapshot.text,
-                got,
-            },
-        );
-
         // TODO check for magic <!update> string here
-        if (false) {
+        const dmp = DiffMatchPatch{ .diff_timeout = 0 };
+        var diffs = dmp.diff(allocator, snapshot.text, got);
+        defer dmp.deinitDiffList(allocator, &diffs);
+        if (diffDiffers(diff)) {
+            const diff_string = try dmp.diffPrettyFormatXTerm(allocator, diffs);
+            defer allocator.free(diff_string);
             std.debug.print(
-                \\To accept this update, replace the start of the first line
-                \\with:
-                \\<!update>
+                \\Snapshot differs:
+                \\
+                \\{s}
+                \\
+                \\ To replace contents, add <!update> as the first line of the snap text.
                 \\
             ,
-                .{},
+                .{diff_string},
             );
-            return error.SnapDiff;
         }
+    }
 
+    fn updateSnap(snapshot: Snap, got: []const u8) !void {
         var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
         defer arena.deinit();
 
-        const allocator = arena.allocator();
+        const arena_allocator = arena.allocator();
 
         const file_text =
-            try std.fs.cwd().readFileAlloc(allocator, snapshot.location.file, 1024 * 1024);
-        var file_text_updated = try std.ArrayList(u8).initCapacity(allocator, file_text.len);
+            try std.fs.cwd().readFileAlloc(arena_allocator, snapshot.location.file, 1024 * 1024);
+        var file_text_updated = try std.ArrayList(u8).initCapacity(arena_allocator, file_text.len);
 
         const line_zero_based = snapshot.location.line - 1;
         const range = snapRange(file_text, line_zero_based);
@@ -175,6 +155,20 @@ pub const Snap = struct {
         return error.SnapUpdated;
     }
 };
+
+fn diffDiffers(diffs: std.ArrayListUnmanaged(DiffMatchPatch.Diff)) bool {
+    // TODO decide whether we regex here or in main function.
+    var all_equal = true;
+    for (diffs.items) |d| {
+        switch (d.operation) {
+            .equal => {},
+            .insert, .delete => {
+                all_equal = false;
+            },
+        }
+    }
+    return all_equal;
+}
 
 fn equalExcludingIgnored(got: []const u8, snapshot: []const u8) bool {
     var got_rest = got;
@@ -212,31 +206,6 @@ fn equalExcludingIgnored(got: []const u8, snapshot: []const u8) bool {
     return std.mem.eql(u8, got_rest, snapshot_rest);
 }
 
-test equalExcludingIgnored {
-    const TestCase = struct { got: []const u8, snapshot: []const u8 };
-
-    const cases_ok: []const TestCase = &.{
-        .{ .got = "ABA", .snapshot = "ABA" },
-        .{ .got = "ABBA", .snapshot = "A<snap:ignore>A" },
-        .{ .got = "ABBACABA", .snapshot = "AB<snap:ignore>CA<snap:ignore>A" },
-    };
-    for (cases_ok) |case| {
-        try std.testing.expect(equalExcludingIgnored(case.got, case.snapshot));
-    }
-
-    const cases_err: []const TestCase = &.{
-        .{ .got = "ABA", .snapshot = "ACA" },
-        .{ .got = "ABBA", .snapshot = "A<snap:ignore>C" },
-        .{ .got = "ABBACABA", .snapshot = "AB<snap:ignore>DA<snap:ignore>BA" },
-        .{ .got = "ABBACABA", .snapshot = "AB<snap:ignore>BA<snap:ignore>DA" },
-        .{ .got = "ABA", .snapshot = "AB<snap:ignore>A" },
-        .{ .got = "A\nB\nA", .snapshot = "A<snap:ignore>A" },
-    };
-    for (cases_err) |case| {
-        try std.testing.expect(!equalExcludingIgnored(case.got, case.snapshot));
-    }
-}
-
 const Range = struct { start: usize, end: usize };
 
 /// Extracts the range of the snapshot. Assumes that the snapshot is formatted as
@@ -263,7 +232,7 @@ fn snapRange(text: []const u8, src_line: u32) Range {
         if (line_number == src_line) {
             if (std.mem.indexOf(u8, line, "@src()") == null) {
                 std.debug.print(
-                    "Expected snapshot @src() on line {d}.\n",
+                    "Expected snapshot @src() on line {d}.  Try running tests again.\n",
                     .{line_number + 1},
                 );
             }
