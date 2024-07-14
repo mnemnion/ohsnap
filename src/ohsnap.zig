@@ -26,6 +26,17 @@ comptime {
     assert(builtin.is_test);
 }
 
+const OhSnap = @This();
+
+pretty_options: pretty.Options = pretty.Options{
+    .max_depth = 0,
+    .struct_max_len = 0,
+    .array_max_len = 0,
+    .array_show_prim_type_info = true,
+    .str_max_len = 0,
+    .show_tree_lines = 0,
+},
+
 //| Cut code also from TigerBeetle: https://github.com/tigerbeetle/tigerbeetle/blob/main/src/stdx.zig
 
 const Cut = struct {
@@ -33,6 +44,46 @@ const Cut = struct {
     suffix: []const u8,
 };
 
+/// Creates a new Snap using `pretty` formatting.
+///
+/// For the update logic to work, *must* be formatted as:
+///
+/// ```
+/// try oh.snap(@src(),
+///     \\Text of the snapshot.
+/// ).expectEqualTo(val);
+/// ```
+/// With the `@src()` on the line before the text, which must be
+/// in multi-line format.
+pub fn snap(ohsnap: OhSnap, location: SourceLocation, text: []const u8) Snap {
+    return Snap{
+        .location = location,
+        .text = text,
+        .ohsnap = ohsnap,
+    };
+}
+
+/// Creates a new Snap using the types `.format` method.
+///
+/// For the update logic to work, *must* be formatted as:
+///
+/// ```
+/// try oh.snapfmt(@src(),
+///     \\Text of the snapshot.
+/// ).expectEqualTo(val);
+/// ```
+/// With the `@src()` on the line before the text, which must be
+/// in multi-line format.
+pub fn snapfmt(ohsnap: OhSnap, location: SourceLocation, text: []const u8) Snap {
+    return Snap{
+        .location = location,
+        .text = text,
+        .ohsnap = ohsnap,
+        .pretty = false,
+    };
+}
+
+// TODO we probably don't need this.
 /// Splits the `haystack` around the first occurrence of `needle`, returning parts before and after.
 ///
 /// This is a Zig version of Go's `string.Cut` / Rust's `str::split_once`. Cut turns out to be a
@@ -47,47 +98,26 @@ pub fn cut(haystack: []const u8, needle: []const u8) ?Cut {
     };
 }
 
+// Regex for detecting embedded regexen
 const ignore_regex_string = "<\\^.+\\$>";
-
-test "init regex" {
-    const haystack = "012345678<^[a-d0-9]+$> blah blah";
-    var iter = Fluent.match(ignore_regex_string, haystack);
-    while (iter.next()) |found| {
-        const start, const len = .{ iter.index - found.items.len, found.items.len };
-        std.debug.print("found at: {d} length {d} {}\n", .{ start, len, found });
-    }
-}
 
 pub const Snap = struct {
     location: SourceLocation,
     text: []const u8,
-    update_this: bool = false,
+    ohsnap: OhSnap,
     pretty: bool = true,
 
     const allocator = std.testing.allocator;
-
-    /// Creates a new Snap.
-    ///
-    /// For the update logic to work, *must* be formatted as:
-    ///
-    /// ```
-    /// snap(@src(),
-    ///     \\Text of the snapshot.
-    /// )
-    /// ```
-    pub fn snap(location: SourceLocation, text: []const u8) Snap {
-        return Snap{ .location = location, .text = text };
-    }
-
-    pub fn snapfmt(location: SourceLocation, text: []const u8) Snap {
-        return Snap{ .location = location, .text = text, .pretty = false };
-    }
 
     /// Compare the snapshot with a formatted string.
     pub fn expectEqualTo(snapshot: *const Snap, args: anytype) !void {
         const got = get: {
             if (snapshot.pretty) // TODO look into options here
-                break :get try pretty.dump(allocator, args, .{})
+                break :get try pretty.dump(
+                    allocator,
+                    args,
+                    snapshot.ohsnap.pretty_options,
+                )
             else
                 break :get try std.fmt.allocPrint(allocator, "{any}", args);
         };
