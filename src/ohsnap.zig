@@ -50,7 +50,7 @@ const Cut = struct {
 /// For the update logic to work, *must* be formatted as:
 ///
 /// ```
-/// try oh.snap(@src(),
+/// try oh.snap(@src(), // This can be on the next line
 ///     \\Text of the snapshot.
 /// ).expectEqual(val);
 /// ```
@@ -69,7 +69,7 @@ pub fn snap(ohsnap: OhSnap, location: SourceLocation, text: []const u8) Snap {
 /// For the update logic to work, *must* be formatted as:
 ///
 /// ```
-/// try oh.snapfmt(@src(),
+/// try oh.snapfmt(@src(), // This can be on the next line
 ///     \\Text of the snapshot.
 /// ).expectEqual(val);
 /// ```
@@ -155,6 +155,7 @@ pub const Snap = struct {
             ,
                 .{diff_string},
             );
+            return try std.testing.expect(false);
         }
     }
 
