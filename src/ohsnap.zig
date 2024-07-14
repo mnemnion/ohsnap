@@ -33,8 +33,9 @@ pretty_options: pretty.Options = pretty.Options{
     .struct_max_len = 0,
     .array_max_len = 0,
     .array_show_prim_type_info = true,
+    .type_name_max_len = 0,
     .str_max_len = 0,
-    .show_tree_lines = 0,
+    .show_tree_lines = true,
 },
 
 //| Cut code also from TigerBeetle: https://github.com/tigerbeetle/tigerbeetle/blob/main/src/stdx.zig
@@ -51,7 +52,7 @@ const Cut = struct {
 /// ```
 /// try oh.snap(@src(),
 ///     \\Text of the snapshot.
-/// ).expectEqualTo(val);
+/// ).expectEqual(val);
 /// ```
 /// With the `@src()` on the line before the text, which must be
 /// in multi-line format.
@@ -63,14 +64,14 @@ pub fn snap(ohsnap: OhSnap, location: SourceLocation, text: []const u8) Snap {
     };
 }
 
-/// Creates a new Snap using the types `.format` method.
+/// Creates a new Snap using the type's `.format` method.
 ///
 /// For the update logic to work, *must* be formatted as:
 ///
 /// ```
 /// try oh.snapfmt(@src(),
 ///     \\Text of the snapshot.
-/// ).expectEqualTo(val);
+/// ).expectEqual(val);
 /// ```
 /// With the `@src()` on the line before the text, which must be
 /// in multi-line format.
@@ -110,7 +111,7 @@ pub const Snap = struct {
     const allocator = std.testing.allocator;
 
     /// Compare the snapshot with a formatted string.
-    pub fn expectEqualTo(snapshot: *const Snap, args: anytype) !void {
+    pub fn expectEqual(snapshot: *const Snap, args: anytype) !void {
         const got = get: {
             if (snapshot.pretty) // TODO look into options here
                 break :get try pretty.dump(
@@ -129,11 +130,20 @@ pub const Snap = struct {
     /// Compare the snapshot with a given string.
     pub fn diff(snapshot: *const Snap, got: []const u8) !void {
         // TODO check for magic <!update> string here
+        const update_idx = std.mem.indexOf(u8, snapshot.text, "<!update>");
+        if (update_idx) |idx| {
+            if (idx == 0) {
+                return try updateSnap(snapshot, got);
+            } else {
+                // Probably a user mistake but the diff logic will surface that
+            }
+        }
+
         const dmp = DiffMatchPatch{ .diff_timeout = 0 };
-        var diffs = dmp.diff(allocator, snapshot.text, got);
-        defer dmp.deinitDiffList(allocator, &diffs);
-        if (diffDiffers(diff)) {
-            const diff_string = try dmp.diffPrettyFormatXTerm(allocator, diffs);
+        var diffs = try dmp.diff(allocator, snapshot.text, got, false);
+        defer DiffMatchPatch.deinitDiffList(allocator, &diffs);
+        if (diffDiffers(diffs)) {
+            const diff_string = try DiffMatchPatch.diffPrettyFormatXTerm(allocator, diffs);
             defer allocator.free(diff_string);
             std.debug.print(
                 \\Snapshot differs:
@@ -148,7 +158,7 @@ pub const Snap = struct {
         }
     }
 
-    fn updateSnap(snapshot: Snap, got: []const u8) !void {
+    fn updateSnap(snapshot: *const Snap, got: []const u8) !void {
         var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
         defer arena.deinit();
 
@@ -159,7 +169,7 @@ pub const Snap = struct {
         var file_text_updated = try std.ArrayList(u8).initCapacity(arena_allocator, file_text.len);
 
         const line_zero_based = snapshot.location.line - 1;
-        const range = snapRange(file_text, line_zero_based);
+        const range = try snapRange(file_text, line_zero_based);
 
         const snapshot_prefix = file_text[0..range.start];
         const snapshot_text = file_text[range.start..range.end];
@@ -194,10 +204,11 @@ fn diffDiffers(diffs: std.ArrayListUnmanaged(DiffMatchPatch.Diff)) bool {
             .equal => {},
             .insert, .delete => {
                 all_equal = false;
+                break;
             },
         }
     }
-    return all_equal;
+    return !all_equal;
 }
 
 fn equalExcludingIgnored(got: []const u8, snapshot: []const u8) bool {
@@ -253,7 +264,7 @@ const Range = struct { start: usize, end: usize };
 /// While we expect to find a snapshot after a given line, this is not guaranteed (the file could
 /// have been modified between compilation and running the test), but should be rare enough to
 /// just fail with an assertion.
-fn snapRange(text: []const u8, src_line: u32) Range {
+fn snapRange(text: []const u8, src_line: u32) !Range {
     var offset: usize = 0;
     var line_number: u32 = 0;
 
@@ -265,8 +276,8 @@ fn snapRange(text: []const u8, src_line: u32) Range {
                     "Expected snapshot @src() on line {d}.  Try running tests again.\n",
                     .{line_number + 1},
                 );
+                try testing.expect(false);
             }
-            try testing.expect(false);
         }
         if (line_number == src_line + 1) {
             if (!isMultilineString(line)) {
@@ -308,4 +319,16 @@ fn getIndent(line: []const u8) []const u8 {
         if (c != ' ') return line[0..i];
     }
     return line;
+}
+
+test "snap test" {
+    const oh = OhSnap{};
+    try oh.snap(
+        @src(),
+        \\struct{comptime foo: *const [10:0]u8 = "bazbuxquux", comptime baz: comptime_int = 27}
+        \\  .foo: *const [10:0]u8
+        \\    "bazbuxquux"
+        \\  .baz: comptime_int = 27
+        ,
+    ).expectEqual(.{ .foo = "bazbuxquux", .baz = 27 });
 }
