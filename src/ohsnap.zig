@@ -21,6 +21,9 @@ const testing = std.testing;
 const assert = std.debug.assert;
 const SourceLocation = std.builtin.SourceLocation;
 
+const DiffList = std.ArrayListUnmanaged(diffz.Diff);
+const Diff = diffz.Diff;
+
 // Intended for use in test mode only.
 comptime {
     assert(builtin.is_test);
@@ -84,21 +87,6 @@ pub fn snapfmt(ohsnap: OhSnap, location: SourceLocation, text: []const u8) Snap 
     };
 }
 
-// TODO we probably don't need this.
-/// Splits the `haystack` around the first occurrence of `needle`, returning parts before and after.
-///
-/// This is a Zig version of Go's `string.Cut` / Rust's `str::split_once`. Cut turns out to be a
-/// surprisingly versatile primitive for ad-hoc string processing. Often `std.mem.indexOf` and
-/// `std.mem.split` can be replaced with a shorter and clearer code using  `cut`.
-pub fn cut(haystack: []const u8, needle: []const u8) ?Cut {
-    const index = std.mem.indexOf(u8, haystack, needle) orelse return null;
-
-    return Cut{
-        .prefix = haystack[0..index],
-        .suffix = haystack[index + needle.len ..],
-    };
-}
-
 // Regex for detecting embedded regexen
 const ignore_regex_string = "<\\^.+\\$>";
 
@@ -122,17 +110,22 @@ pub const Snap = struct {
             else
                 break :get try std.fmt.allocPrint(allocator, "{any}", args);
         };
-        defer std.testing.allocator.free(got);
+        defer allocator.free(got);
 
         try snapshot.diff(got);
     }
 
     /// Compare the snapshot with a given string.
     pub fn diff(snapshot: *const Snap, got: []const u8) !void {
-        // TODO check for magic <!update> string here
+        // Regex finding regex-ignore regions.
+        var regex_finder = Fluent.init(snapshot.text).match(snapshot.text);
         const update_idx = std.mem.indexOf(u8, snapshot.text, "<!update>");
         if (update_idx) |idx| {
             if (idx == 0) {
+                if (regex_finder.next()) |_| {
+                    std.debug.print("regex handling for updates NYI!\n", .{});
+                    return std.testing.expect(false);
+                }
                 return try updateSnap(snapshot, got);
             } else {
                 // Probably a user mistake but the diff logic will surface that
@@ -144,6 +137,9 @@ pub const Snap = struct {
         defer diffz.deinitDiffList(allocator, &diffs);
         if (diffDiffers(diffs)) {
             try diffz.diffCleanupSemantic(allocator, &diffs);
+            if (regex_finder.next()) |_| {
+                try regexFixup(allocator, &diffs, snapshot, got);
+            }
             const diff_string = try diffz.diffPrettyFormatXTerm(allocator, diffs);
             defer allocator.free(diff_string);
             std.debug.print(
@@ -200,7 +196,7 @@ pub const Snap = struct {
 };
 
 /// Answer whether the diffs differ (pre-regex, if any)
-fn diffDiffers(diffs: std.ArrayListUnmanaged(diffz.Diff)) bool {
+fn diffDiffers(diffs: DiffList) bool {
     var all_equal = true;
     for (diffs.items) |d| {
         switch (d.operation) {
@@ -214,40 +210,95 @@ fn diffDiffers(diffs: std.ArrayListUnmanaged(diffz.Diff)) bool {
     return !all_equal;
 }
 
-fn equalExcludingIgnored(got: []const u8, snapshot: []const u8) bool {
-    var got_rest = got;
-    var snapshot_rest = snapshot;
-
-    // Don't allow ignoring suffixes and prefixes, as that makes it easy to miss trailing or leading
-    // data.
-    assert(!std.mem.startsWith(u8, snapshot, "<snap:ignore>"));
-    assert(!std.mem.endsWith(u8, snapshot, "<snap:ignore>"));
-
-    for (0..10) |_| {
-        // Cut the part before the first ignore, it should be equal between two strings...
-        const snapshot_cut = cut(snapshot_rest, "<snap:ignore>") orelse break;
-        const got_cut = cut(got_rest, snapshot_cut.prefix) orelse return false;
-        if (got_cut.prefix.len != 0) return false;
-        got_rest = got_cut.suffix;
-        snapshot_rest = snapshot_cut.suffix;
-
-        // ...then find the next part that should match, and cut up to that.
-        const next_match = if (cut(snapshot_rest, "<snap:ignore>")) |snapshot_cut_next|
-            snapshot_cut_next.prefix
-        else
-            snapshot_rest;
-        assert(next_match.len > 0);
-        snapshot_rest = cut(snapshot_rest, next_match).?.suffix;
-
-        const got_cut_next = cut(got_rest, next_match) orelse return false;
-        const ignored = got_cut_next.prefix;
-        // If <snap:ignore> matched an empty string, or several lines, report it as an error.
-        if (ignored.len == 0) return false;
-        if (std.mem.indexOf(u8, ignored, "\n") != null) return false;
-        got_rest = got_cut_next.suffix;
-    } else @panic("more than 10 ignores");
-
-    return std.mem.eql(u8, got_rest, snapshot_rest);
+/// Find regex matches and modify the diff accordingly.
+fn regexFixup(
+    allocator: std.mem.Allocator,
+    diffs: *DiffList,
+    snapshot: *const Snap,
+    got: []const u8,
+) !void {
+    var regex_find = Fluent.match(snapshot.text, ignore_regex_string);
+    var diffs_idx: usize = 0;
+    var snap_idx: usize = 0;
+    var got_idx: usize = 0;
+    while (regex_find.next()) |found| {
+        // Find this location in the got string.
+        const snap_start = regex_find.index - found.items.len;
+        const snap_end = snap_start + found.items.len;
+        const got_start = diffz.diffIndex(diffs.*, snap_start);
+        const got_end = diffz.diffIndex(diffs.*, snap_end);
+        // Trim the angle brackets off the regex.
+        const exclude_regex = found.items[1 .. found.items.len - 1];
+        std.debug.print("exclude regex: {s}\n", .{exclude_regex});
+        var matcher = Fluent
+            .init(got[got_start..got_end])
+            .match(exclude_regex);
+        const maybe_match = matcher.next();
+        // Either way, we zero out the patches, the difference being
+        // how we represent the match or not-match in the diff list.
+        while (diffs_idx < diffs.items.len) : (diffs_idx += 1) {
+            const d = diffs.items[diffs_idx];
+            // All patches which are inside one or the other are set to nothing
+            const in_snap = snap_start <= snap_idx and snap_start < snap_end;
+            const in_got = got_start <= got_idx and got_idx < got_end;
+            switch (d.operation) {
+                .equal => {
+                    // Could easily be in common between the regex and the match.
+                    snap_idx += d.text.len;
+                    got_idx += d.text.len;
+                    if (in_snap and in_got) {
+                        allocator.free(d.text);
+                        diffs.items[diffs_idx] = Diff{ .operation = .equal, .text = "" };
+                    }
+                },
+                .insert => {
+                    // Are we in the match?
+                    got_idx += d.text.len;
+                    if (in_got) {
+                        // Yes, replace with dummy equal
+                        allocator.free(d.text);
+                        diffs.items[diffs_idx] = Diff{ .operation = .equal, .text = "" };
+                    } else {
+                        got_idx += d.text.len;
+                    }
+                },
+                .delete => {
+                    snap_idx += d.text.len;
+                    // Same deal, are we in the match?
+                    if (in_snap) {
+                        allocator.free(d.text);
+                        diffs.items[diffs_idx] = Diff{ .operation = .equal, .text = "" };
+                    }
+                },
+            }
+            // Inserts come after deletes, so we check got_idx
+            if (got_idx >= got_end) break;
+        }
+        // Should always mean we have at least two (but we care about
+        // having one) diffs rubbed out.
+        var formatted = try std.ArrayList(u8).initCapacity(allocator, 10);
+        defer formatted.deinit();
+        assert(diffs[diffs_idx].operation == .equal and diffs[diffs_idx].text.len == 0);
+        if (maybe_match) |m| {
+            // Decorate with cyan for a match.
+            try formatted.appendSlice("\x1b[36m");
+            try formatted.appendSlice(m.items);
+            try formatted.appendSlice("\x1b[m");
+            diffs[diffs.idx] = Diff{
+                .operation = .equal,
+                .text = formatted.toOwnedSlice(),
+            };
+        } else {
+            // Decorate magenta for no match, and make it an insert (hence, error)
+            try formatted.appendSlice("\x1b[35m");
+            try formatted.appendSlice(got[got_start..got_end]);
+            try formatted.appendSlice("\x1b[m]");
+            diffs[diffs.idx] = Diff{
+                .operation = .insert,
+                .text = formatted.toOwnedSlice(),
+            };
+        }
+    }
 }
 
 const Range = struct { start: usize, end: usize };
