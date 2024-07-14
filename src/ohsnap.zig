@@ -376,13 +376,47 @@ fn getIndent(line: []const u8) []const u8 {
 }
 
 test "snap test" {
+    // Change either the snapshot or the struct to make these test fail
     const oh = OhSnap{};
-    try oh.snap(
-        @src(),
+    // Simple anon struct
+    try oh.snap(@src(),
         \\struct{comptime foo: *const [10:0]u8 = "bazbuxquux", comptime baz: comptime_int = 27}
         \\  .foo: *const [10:0]u8
         \\    "bazbuxquux"
         \\  .baz: comptime_int = 27
-        ,
     ).expectEqual(.{ .foo = "bazbuxquux", .baz = 27 });
+    // Type
+    try oh.snap(
+        @src(),
+        \\builtin.Type
+        \\  .Struct: builtin.Type.Struct
+        \\    .layout: builtin.Type.ContainerLayout
+        \\      .auto
+        \\    .backing_integer: ?type
+        \\      null
+        \\    .fields: []const builtin.Type.StructField
+        \\      [0]: builtin.Type.StructField
+        \\        .name: [:0]const u8
+        \\          "pretty_options"
+        \\        .type: type
+        \\          pretty.Options
+        \\        .default_value: ?*const anyopaque
+        \\        .is_comptime: bool = false
+        \\        .alignment: comptime_int = 8
+        \\    .decls: []const builtin.Type.Declaration
+        \\      [0]: builtin.Type.Declaration
+        \\        .name: [:0]const u8
+        \\          "snap"
+        \\      [1]: builtin.Type.Declaration
+        \\        .name: [:0]const u8
+        \\          "snapfmt"
+        \\      [2]: builtin.Type.Declaration
+        \\        .name: [:0]const u8
+        \\          "cut"
+        \\      [3]: builtin.Type.Declaration
+        \\        .name: [:0]const u8
+        \\          "Snap"
+        \\    .is_tuple: bool = false
+        ,
+    ).expectEqual(@typeInfo(@This()));
 }
