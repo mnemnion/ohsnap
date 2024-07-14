@@ -15,7 +15,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const Fluent = @import("Fluent");
 const pretty = @import("pretty");
-const DiffMatchPatch = @import("diffz");
+const diffz = @import("diffz");
 const testing = std.testing;
 
 const assert = std.debug.assert;
@@ -139,21 +139,23 @@ pub const Snap = struct {
             }
         }
 
-        const dmp = DiffMatchPatch{ .diff_timeout = 0 };
+        const dmp = diffz{ .diff_timeout = 0 };
         var diffs = try dmp.diff(allocator, snapshot.text, got, false);
-        defer DiffMatchPatch.deinitDiffList(allocator, &diffs);
+        defer diffz.deinitDiffList(allocator, &diffs);
         if (diffDiffers(diffs)) {
-            const diff_string = try DiffMatchPatch.diffPrettyFormatXTerm(allocator, diffs);
+            try diffz.diffCleanupSemantic(allocator, &diffs);
+            const diff_string = try diffz.diffPrettyFormatXTerm(allocator, diffs);
             defer allocator.free(diff_string);
             std.debug.print(
-                \\Snapshot differs:
+                \\Snapshot differs on line {s}{d}{s}:
                 \\
                 \\{s}
                 \\
                 \\ To replace contents, add <!update> as the first line of the snap text.
                 \\
+                \\
             ,
-                .{diff_string},
+                .{ "\x1b[33m", snapshot.location.line, "\x1b[m", diff_string },
             );
             return try std.testing.expect(false);
         }
@@ -197,8 +199,8 @@ pub const Snap = struct {
     }
 };
 
-fn diffDiffers(diffs: std.ArrayListUnmanaged(DiffMatchPatch.Diff)) bool {
-    // TODO decide whether we regex here or in main function.
+/// Answer whether the diffs differ (pre-regex, if any)
+fn diffDiffers(diffs: std.ArrayListUnmanaged(diffz.Diff)) bool {
     var all_equal = true;
     for (diffs.items) |d| {
         switch (d.operation) {
