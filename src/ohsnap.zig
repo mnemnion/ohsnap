@@ -89,7 +89,7 @@ pub fn snapfmt(ohsnap: OhSnap, location: SourceLocation, text: []const u8) Snap 
 }
 
 // Regex for detecting embedded regexen
-const ignore_regex_string = "<\\^.+\\$>";
+const ignore_regex_string = "<\\^.+?\\$>";
 
 pub const Snap = struct {
     location: SourceLocation,
@@ -141,7 +141,9 @@ pub const Snap = struct {
             try diffz.diffCleanupSemantic(allocator, &diffs);
             const match = regex_finder.match(snapshot.text);
             if (match) |_| {
-                try regexFixup(&diffs, snapshot, got);
+                std.debug.print("found a match\n", .{});
+                diffs = try regexFixup(&diffs, snapshot, got);
+                if (!diffDiffers(diffs)) return;
             }
             const diff_string = try diffz.diffPrettyFormatXTerm(allocator, diffs);
             defer allocator.free(diff_string);
@@ -202,24 +204,29 @@ pub const Snap = struct {
         diffs: *DiffList,
         snapshot: *const Snap,
         got: []const u8,
-    ) !void {
+    ) !DiffList {
+        defer diffz.deinitDiffList(allocator, diffs);
         var regex_find = regex_finder.iterator(snapshot.text);
         var diffs_idx: usize = 0;
         var snap_idx: usize = 0;
         var got_idx: usize = 0;
-        while (regex_find.next()) |found| {
+        var new_diffs = DiffList{};
+        errdefer diffz.deinitDiffList(allocator, &new_diffs);
+        const dummy_diff = Diff.init(.equal, "");
+        regex_while: while (regex_find.next()) |found| {
+            std.debug.print("exclude regex: {s}\n", .{found.slice});
             // Find this location in the got string.
             const snap_start = found.start;
             const snap_end = found.end;
             const got_start = diffz.diffIndex(diffs.*, snap_start);
             const got_end = diffz.diffIndex(diffs.*, snap_end);
+            std.debug.print("got slice: {s}\n", .{got[got_start..got_end]});
             // Trim the angle brackets off the regex.
-            const exclude_regex = found.slice[1 .. found.end - 1];
-            std.debug.print("exclude regex: {s}\n", .{exclude_regex});
+            const exclude_regex = found.slice[1 .. found.slice.len - 1];
             const maybe_matcher = mvzr.compile(exclude_regex);
             if (maybe_matcher == null) {
                 std.debug.print("issue with mvzr or regex, hard to say.\n", .{});
-                return try std.testing.expect(false);
+                break :regex_while;
             }
             const matcher = maybe_matcher.?;
             const maybe_match = matcher.match(got[got_start..got_end]);
@@ -227,6 +234,7 @@ pub const Snap = struct {
             // how we represent the match or not-match in the diff list.
             while (diffs_idx < diffs.items.len) : (diffs_idx += 1) {
                 const d = diffs.items[diffs_idx];
+                std.debug.print("{}\n", .{d});
                 // All patches which are inside one or the other are set to nothing
                 const in_snap = snap_start <= snap_idx and snap_start < snap_end;
                 const in_got = got_start <= got_idx and got_idx < got_end;
@@ -236,8 +244,9 @@ pub const Snap = struct {
                         snap_idx += d.text.len;
                         got_idx += d.text.len;
                         if (in_snap and in_got) {
-                            allocator.free(d.text);
-                            diffs.items[diffs_idx] = Diff{ .operation = .equal, .text = "" };
+                            try new_diffs.append(allocator, dummy_diff);
+                        } else {
+                            try new_diffs.append(allocator, try dupe(d));
                         }
                     },
                     .insert => {
@@ -245,35 +254,35 @@ pub const Snap = struct {
                         got_idx += d.text.len;
                         if (in_got) {
                             // Yes, replace with dummy equal
-                            allocator.free(d.text);
-                            diffs.items[diffs_idx] = Diff{ .operation = .equal, .text = "" };
+                            try new_diffs.append(allocator, dummy_diff);
                         } else {
-                            got_idx += d.text.len;
+                            try new_diffs.append(allocator, try dupe(d));
                         }
                     },
                     .delete => {
                         snap_idx += d.text.len;
                         // Same deal, are we in the match?
                         if (in_snap) {
-                            allocator.free(d.text);
-                            diffs.items[diffs_idx] = Diff{ .operation = .equal, .text = "" };
+                            try new_diffs.append(allocator, dummy_diff);
+                        } else {
+                            try new_diffs.append(allocator, try dupe(d));
                         }
                     },
                 }
-                // Inserts come after deletes, so we check got_idx
-                if (got_idx >= got_end) break;
+
+                if (got_idx >= got_end and snap_idx >= snap_end) break;
             }
             // Should always mean we have at least two (but we care about
             // having one) diffs rubbed out.
             var formatted = try std.ArrayList(u8).initCapacity(allocator, 10);
             defer formatted.deinit();
-            assert(diffs.items[diffs_idx].operation == .equal and diffs.items[diffs_idx].text.len == 0);
+            assert(new_diffs.items[diffs_idx].operation == .equal and new_diffs.items[diffs_idx].text.len == 0);
             if (maybe_match) |_| {
                 // Decorate with cyan for a match.
                 try formatted.appendSlice("\x1b[36m");
                 try formatted.appendSlice(got[got_start..got_end]);
                 try formatted.appendSlice("\x1b[m");
-                diffs.items[diffs_idx] = Diff{
+                new_diffs.items[diffs_idx] = Diff{
                     .operation = .equal,
                     .text = try formatted.toOwnedSlice(),
                 };
@@ -281,13 +290,23 @@ pub const Snap = struct {
                 // Decorate magenta for no match, and make it an insert (hence, error)
                 try formatted.appendSlice("\x1b[35m");
                 try formatted.appendSlice(got[got_start..got_end]);
-                try formatted.appendSlice("\x1b[m]");
-                diffs.items[diffs_idx] = Diff{
+                try formatted.appendSlice("\x1b[m");
+                new_diffs.items[diffs_idx] = Diff{
                     .operation = .insert,
                     .text = try formatted.toOwnedSlice(),
                 };
             }
+            diffs_idx += 1;
+        } // end regex while
+        while (diffs_idx < diffs.items.len) : (diffs_idx += 1) {
+            const d = diffs.items[diffs_idx];
+            try new_diffs.append(allocator, try dupe(d));
         }
+        return new_diffs;
+    }
+
+    fn dupe(d: Diff) !Diff {
+        return Diff.init(d.operation, try allocator.dupe(u8, d.text));
     }
 };
 
@@ -421,4 +440,34 @@ test "snap test" {
         \\    .is_tuple: bool = false
         ,
     ).expectEqual(@typeInfo(@This()));
+}
+test "snap regex" {
+    const RandomField = struct {
+        const RF = @This();
+        str: []const u8 = "arglebargle",
+        pi: f64 = 3.14159,
+        rand: u64,
+        xtra: u8 = 77,
+        fn init(rand: u64) RF {
+            return RF{ .rand = rand };
+        }
+    };
+    var prng = std.Random.DefaultPrng.init(blk: {
+        var seed: u64 = undefined;
+        try std.posix.getrandom(std.mem.asBytes(&seed));
+        break :blk seed;
+    });
+    const rand = prng.random();
+    const an_rf = RandomField.init(rand.int(u64));
+    const oh = OhSnap{};
+    try oh.snap(
+        @src(),
+        \\ohsnap.test.snap regex.RandomField
+        \\  .str: []const u8
+        \\    "arg<^lebar$>gle"
+        \\  .pi: f64 = 3.14159e0
+        \\  .rand: u64 = <^\d+$>
+        \\  .xtra: u8 = 27
+        ,
+    ).expectEqual(an_rf);
 }
