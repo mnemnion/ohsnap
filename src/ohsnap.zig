@@ -96,6 +96,7 @@ pub const Snap = struct {
     text: []const u8,
     ohsnap: OhSnap,
     pretty: bool = true,
+    const regex_finder = mvzr.compile(ignore_regex_string).?;
 
     const allocator = std.testing.allocator;
 
@@ -119,14 +120,14 @@ pub const Snap = struct {
     /// Compare the snapshot with a given string.
     pub fn diff(snapshot: *const Snap, got: []const u8) !void {
         // Regex finding regex-ignore regions.
-        // var regex_finder = Fluent.init(snapshot.text).match(snapshot.text);
         const update_idx = std.mem.indexOf(u8, snapshot.text, "<!update>");
         if (update_idx) |idx| {
             if (idx == 0) {
-                //  if (regex_finder.next()) |_| {
-                //      std.debug.print("regex handling for updates NYI!\n", .{});
-                //      return std.testing.expect(false);
-                //  }
+                const match = regex_finder.match(snapshot.text);
+                if (match) |_| {
+                    std.debug.print("regex handling for updates NYI!\n", .{});
+                    return std.testing.expect(false);
+                }
                 return try updateSnap(snapshot, got);
             } else {
                 // Probably a user mistake but the diff logic will surface that
@@ -138,9 +139,10 @@ pub const Snap = struct {
         defer diffz.deinitDiffList(allocator, &diffs);
         if (diffDiffers(diffs)) {
             try diffz.diffCleanupSemantic(allocator, &diffs);
-            // if (regex_finder.next()) |_| {
-            //     try regexFixup(allocator, &diffs, snapshot, got);
-            // }
+            const match = regex_finder.match(snapshot.text);
+            if (match) |_| {
+                try regexFixup(&diffs, snapshot, got);
+            }
             const diff_string = try diffz.diffPrettyFormatXTerm(allocator, diffs);
             defer allocator.free(diff_string);
             std.debug.print(
@@ -194,48 +196,33 @@ pub const Snap = struct {
         std.debug.print("Updated {s}\n", .{snapshot.location.file});
         return error.SnapUpdated;
     }
-};
 
-/// Answer whether the diffs differ (pre-regex, if any)
-fn diffDiffers(diffs: DiffList) bool {
-    var all_equal = true;
-    for (diffs.items) |d| {
-        switch (d.operation) {
-            .equal => {},
-            .insert, .delete => {
-                all_equal = false;
-                break;
-            },
-        }
-    }
-    return !all_equal;
-}
-
-/// Find regex matches and modify the diff accordingly.
-fn regexFixup(
-    allocator: std.mem.Allocator,
-    diffs: *DiffList,
-    snapshot: *const Snap,
-    got: []const u8,
-) !void {
-    if (false) {
-        var regex_find = Fluent.match(snapshot.text, ignore_regex_string);
+    /// Find regex matches and modify the diff accordingly.
+    fn regexFixup(
+        diffs: *DiffList,
+        snapshot: *const Snap,
+        got: []const u8,
+    ) !void {
+        var regex_find = regex_finder.iterator(snapshot.text);
         var diffs_idx: usize = 0;
         var snap_idx: usize = 0;
         var got_idx: usize = 0;
         while (regex_find.next()) |found| {
             // Find this location in the got string.
-            const snap_start = regex_find.index - found.items.len;
-            const snap_end = snap_start + found.items.len;
+            const snap_start = found.start;
+            const snap_end = found.end;
             const got_start = diffz.diffIndex(diffs.*, snap_start);
             const got_end = diffz.diffIndex(diffs.*, snap_end);
             // Trim the angle brackets off the regex.
-            const exclude_regex = found.items[1 .. found.items.len - 1];
+            const exclude_regex = found.slice[1 .. found.end - 1];
             std.debug.print("exclude regex: {s}\n", .{exclude_regex});
-            var matcher = Fluent
-                .init(got[got_start..got_end])
-                .match(exclude_regex);
-            const maybe_match = matcher.next();
+            const maybe_matcher = mvzr.compile(exclude_regex);
+            if (maybe_matcher == null) {
+                std.debug.print("issue with mvzr or regex, hard to say.\n", .{});
+                return try std.testing.expect(false);
+            }
+            const matcher = maybe_matcher.?;
+            const maybe_match = matcher.match(got[got_start..got_end]);
             // Either way, we zero out the patches, the difference being
             // how we represent the match or not-match in the diff list.
             while (diffs_idx < diffs.items.len) : (diffs_idx += 1) {
@@ -281,10 +268,10 @@ fn regexFixup(
             var formatted = try std.ArrayList(u8).initCapacity(allocator, 10);
             defer formatted.deinit();
             assert(diffs[diffs_idx].operation == .equal and diffs[diffs_idx].text.len == 0);
-            if (maybe_match) |m| {
+            if (maybe_match) |_| {
                 // Decorate with cyan for a match.
                 try formatted.appendSlice("\x1b[36m");
-                try formatted.appendSlice(m.items);
+                try formatted.appendSlice(got[got.start..got.end]);
                 try formatted.appendSlice("\x1b[m");
                 diffs[diffs.idx] = Diff{
                     .operation = .equal,
@@ -302,6 +289,21 @@ fn regexFixup(
             }
         }
     }
+};
+
+/// Answer whether the diffs differ (pre-regex, if any)
+fn diffDiffers(diffs: DiffList) bool {
+    var all_equal = true;
+    for (diffs.items) |d| {
+        switch (d.operation) {
+            .equal => {},
+            .insert, .delete => {
+                all_equal = false;
+                break;
+            },
+        }
+    }
+    return !all_equal;
 }
 
 const Range = struct { start: usize, end: usize };
