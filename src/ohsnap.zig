@@ -4,16 +4,15 @@
 //!
 //! Integrates @timfayz's pretty-printing library, pretty[^2], in order
 //! to have general-purpose printing of data structures, and as a regex
-//! library, Fluent[^3], by @andrewCodeDev.
+//! library, the Minimum Viable Zig Regex[^3].
 //!
 //!
 //! [^1]: https://github.com/tigerbeetle/tigerbeetle/blob/main/src/testing/snaptest.zig.
 //! [^2]: https://github.com/timfayz/pretty
-//! [^3]: https://github.com/andrewCodeDev/Fluent
+//! [^3]: https://github.com/mnemnion/mvzr
 
 const std = @import("std");
 const builtin = @import("builtin");
-const Fluent = @import("Fluent");
 const pretty = @import("pretty");
 const diffz = @import("diffz");
 const mvzr = @import("mvzr");
@@ -90,13 +89,13 @@ pub fn snapfmt(ohsnap: OhSnap, location: SourceLocation, text: []const u8) Snap 
 
 // Regex for detecting embedded regexen
 const ignore_regex_string = "<\\^.+?\\$>";
+const regex_finder = mvzr.compile(ignore_regex_string).?;
 
 pub const Snap = struct {
     location: SourceLocation,
     text: []const u8,
     ohsnap: OhSnap,
     pretty: bool = true,
-    const regex_finder = mvzr.compile(ignore_regex_string).?;
 
     const allocator = std.testing.allocator;
 
@@ -125,10 +124,10 @@ pub const Snap = struct {
             if (idx == 0) {
                 const match = regex_finder.match(snapshot.text);
                 if (match) |_| {
-                    std.debug.print("regex handling for updates NYI!\n", .{});
-                    return std.testing.expect(false);
+                    return try patchAndUpdate(snapshot, got);
+                } else {
+                    return try updateSnap(snapshot, got);
                 }
-                return try updateSnap(snapshot, got);
             } else {
                 // Probably a user mistake but the diff logic will surface that
             }
@@ -141,14 +140,13 @@ pub const Snap = struct {
             try diffz.diffCleanupSemantic(allocator, &diffs);
             const match = regex_finder.match(snapshot.text);
             if (match) |_| {
-                std.debug.print("found a match\n", .{});
                 diffs = try regexFixup(&diffs, snapshot, got);
                 if (!diffDiffers(diffs)) return;
             }
             const diff_string = try diffz.diffPrettyFormatXTerm(allocator, diffs);
             defer allocator.free(diff_string);
             std.debug.print(
-                \\Snapshot differs on line {s}{d}{s}:
+                \\Snapshot on line {s}{d}{s} differs:
                 \\
                 \\{s}
                 \\
@@ -214,13 +212,11 @@ pub const Snap = struct {
         errdefer diffz.deinitDiffList(allocator, &new_diffs);
         const dummy_diff = Diff.init(.equal, "");
         regex_while: while (regex_find.next()) |found| {
-            std.debug.print("exclude regex: {s}\n", .{found.slice});
             // Find this location in the got string.
             const snap_start = found.start;
             const snap_end = found.end;
             const got_start = diffz.diffIndex(diffs.*, snap_start);
             const got_end = diffz.diffIndex(diffs.*, snap_end);
-            std.debug.print("got slice: {s}\n", .{got[got_start..got_end]});
             // Trim the angle brackets off the regex.
             const exclude_regex = found.slice[1 .. found.slice.len - 1];
             const maybe_matcher = mvzr.compile(exclude_regex);
@@ -234,7 +230,6 @@ pub const Snap = struct {
             // how we represent the match or not-match in the diff list.
             while (diffs_idx < diffs.items.len) : (diffs_idx += 1) {
                 const d = diffs.items[diffs_idx];
-                std.debug.print("{}\n", .{d});
                 // All patches which are inside one or the other are set to nothing
                 const in_snap = snap_start <= snap_idx and snap_start < snap_end;
                 const in_got = got_start <= got_idx and got_idx < got_end;
@@ -303,6 +298,32 @@ pub const Snap = struct {
             try new_diffs.append(allocator, try dupe(d));
         }
         return new_diffs;
+    }
+
+    fn patchAndUpdate(snapshot: *const Snap, got: []const u8) !void {
+        const dmp = diffz{ .diff_timeout = 0, .match_threshold = 0.05 };
+        var diffs = try dmp.diff(allocator, snapshot.text, got, false);
+        defer diffz.deinitDiffList(allocator, &diffs);
+        // Very similar to `regexFixup`, but here we clean up the diffed region,
+        // then add a paired delete/insert, and use it to patch `got`.
+        var regex_find = regex_finder.iterator(snapshot.text);
+        var got_idx: usize = 0;
+        var new_diffs = DiffList{};
+        defer diffz.deinitDiffList(allocator, &new_diffs);
+        var new_got = try std.ArrayList(u8).initCapacity(allocator, @max(got.len, snapshot.text.len));
+        defer new_got.deinit();
+        while (regex_find.next()) |found| {
+            // Find this location in the got string.
+            const snap_start = found.start;
+            const snap_end = found.end;
+            const got_start = diffz.diffIndex(diffs, snap_start);
+            const got_end = diffz.diffIndex(diffs, snap_end);
+            try new_got.appendSlice(got[got_idx..got_start]);
+            try new_got.appendSlice(found.slice);
+            got_idx = got_end;
+        }
+        try new_got.appendSlice(got[got_idx..]);
+        return try updateSnap(snapshot, new_got.items);
     }
 
     fn dupe(d: Diff) !Diff {
@@ -447,7 +468,7 @@ test "snap regex" {
         str: []const u8 = "arglebargle",
         pi: f64 = 3.14159,
         rand: u64,
-        xtra: u8 = 77,
+        xtra: u16 = 1571,
         fn init(rand: u64) RF {
             return RF{ .rand = rand };
         }
@@ -464,10 +485,10 @@ test "snap regex" {
         @src(),
         \\ohsnap.test.snap regex.RandomField
         \\  .str: []const u8
-        \\    "arg<^lebar$>gle"
+        \\    "argle<^\w+?$>gle"
         \\  .pi: f64 = 3.14159e0
         \\  .rand: u64 = <^\d+$>
-        \\  .xtra: u8 = 27
+        \\  .xtra: u16 = 1571
         ,
     ).expectEqual(an_rf);
 }
