@@ -24,17 +24,10 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/ohsnap.zig"),
         .target = target,
         .optimize = optimize,
+        .filter = b.option([]const u8, "filter", "Filter strings for tests"),
     });
 
     const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
-
-    if (b.lazyDependency("Fluent", .{
-        .target = target,
-        .optimize = optimize,
-    })) |fluent_dep| {
-        lib.root_module.addImport("Fluent", fluent_dep.module("Fluent"));
-        lib_unit_tests.root_module.addImport("Fluent", fluent_dep.module("Fluent"));
-    }
 
     if (b.lazyDependency("pretty", .{
         .target = target,

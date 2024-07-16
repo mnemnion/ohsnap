@@ -24,10 +24,6 @@
     // internet connectivity.
 
     .dependencies = .{
-        .Fluent = .{
-            .url = "https://github.com/andrewCodeDev/Fluent/archive/refs/tags/release_2.2.0.tar.gz",
-            .hash = "12201fe9215c050185c6f02358d5dfb0c363080356ce1d995f4e6ada5d42bc6ed4b9",
-        },
         .pretty = .{
             .url = "https://github.com/timfayz/pretty/archive/refs/tags/v0.10.2.tar.gz",
             .hash = "12201325c0651a8cc167d1d3bd07a71aa3b87b91065d45a64298a3e1d5716d62ed85",
@@ -37,8 +33,8 @@
             .hash = "122080eb90caf3f49e525c7ed03834d3eead6a89acf46249ed679802d2bf372b1b49",
         },
         .mvzr = .{
-            .url = "https://github.com/mnemnion/mvzr/archive/refs/tags/v0.0.2.tar.gz",
-            .hash = "12200153efb1f5ec0bce0f63795f7ee64cd62f08cebec4dfb7b6aef3eb60f9c542bd",
+            .url = "https://github.com/mnemnion/mvzr/archive/refs/tags/v0.0.3.tar.gz",
+            .hash = "122055ea525c0cd332eded4ab2a72ab95507be319b46d5ad77595a898ee8f800c80a",
         },
     },
     .paths = .{
