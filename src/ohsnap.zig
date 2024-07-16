@@ -267,24 +267,24 @@ pub const Snap = struct {
             // having one) diffs rubbed out.
             var formatted = try std.ArrayList(u8).initCapacity(allocator, 10);
             defer formatted.deinit();
-            assert(diffs[diffs_idx].operation == .equal and diffs[diffs_idx].text.len == 0);
+            assert(diffs.items[diffs_idx].operation == .equal and diffs.items[diffs_idx].text.len == 0);
             if (maybe_match) |_| {
                 // Decorate with cyan for a match.
                 try formatted.appendSlice("\x1b[36m");
-                try formatted.appendSlice(got[got.start..got.end]);
+                try formatted.appendSlice(got[got_start..got_end]);
                 try formatted.appendSlice("\x1b[m");
-                diffs[diffs.idx] = Diff{
+                diffs.items[diffs_idx] = Diff{
                     .operation = .equal,
-                    .text = formatted.toOwnedSlice(),
+                    .text = try formatted.toOwnedSlice(),
                 };
             } else {
                 // Decorate magenta for no match, and make it an insert (hence, error)
                 try formatted.appendSlice("\x1b[35m");
                 try formatted.appendSlice(got[got_start..got_end]);
                 try formatted.appendSlice("\x1b[m]");
-                diffs[diffs.idx] = Diff{
+                diffs.items[diffs_idx] = Diff{
                     .operation = .insert,
-                    .text = formatted.toOwnedSlice(),
+                    .text = try formatted.toOwnedSlice(),
                 };
             }
         }
