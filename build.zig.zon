@@ -36,6 +36,10 @@
             .url = "https://github.com/mnemnion/diffz/archive/refs/tags/v0.0.2-rc2.tar.gz",
             .hash = "122080eb90caf3f49e525c7ed03834d3eead6a89acf46249ed679802d2bf372b1b49",
         },
+        .mvzr = .{
+            .url = "https://github.com/mnemnion/mvzr/archive/refs/tags/v0.0.2-rc2.tar.gz",
+            .hash = "1220b55ccf883a26306c65021906828103b5d714e932347a4006c0458b0ea8956bba",
+        },
     },
     .paths = .{
         "build.zig",
