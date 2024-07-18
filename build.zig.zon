@@ -33,8 +33,8 @@
             .hash = "122080eb90caf3f49e525c7ed03834d3eead6a89acf46249ed679802d2bf372b1b49",
         },
         .mvzr = .{
-            .url = "https://github.com/mnemnion/mvzr/archive/refs/tags/v0.0.3.tar.gz",
-            .hash = "122055ea525c0cd332eded4ab2a72ab95507be319b46d5ad77595a898ee8f800c80a",
+            .url = "https://github.com/mnemnion/mvzr/archive/refs/tags/v0.0.10.tar.gz",
+            .hash = "1220e6c370e5d4d6bc66d63978f244a017a8f03e0f87e08a2c4dd948ac36b122827d",
         },
     },
     .paths = .{
