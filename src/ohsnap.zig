@@ -24,6 +24,9 @@ const SourceLocation = std.builtin.SourceLocation;
 const DiffList = std.ArrayListUnmanaged(diffz.Diff);
 const Diff = diffz.Diff;
 
+// Generous limits for user regexen
+const UserRegex = mvzr.SizedRegex(128, 16);
+
 // Intended for use in test mode only.
 comptime {
     assert(builtin.is_test);
@@ -40,13 +43,6 @@ pretty_options: pretty.Options = pretty.Options{
     .str_max_len = 0,
     .show_tree_lines = true,
 },
-
-//| Cut code also from TigerBeetle: https://github.com/tigerbeetle/tigerbeetle/blob/main/src/stdx.zig
-
-const Cut = struct {
-    prefix: []const u8,
-    suffix: []const u8,
-};
 
 /// Creates a new Snap using `pretty` formatting.
 ///
@@ -219,7 +215,7 @@ pub const Snap = struct {
             const got_end = diffz.diffIndex(diffs.*, snap_end);
             // Trim the angle brackets off the regex.
             const exclude_regex = found.slice[1 .. found.slice.len - 1];
-            const maybe_matcher = mvzr.compile(exclude_regex);
+            const maybe_matcher = UserRegex.compile(exclude_regex);
             if (maybe_matcher == null) {
                 std.debug.print("issue with mvzr or regex, hard to say.\n", .{});
                 break :regex_while;
@@ -351,18 +347,24 @@ const Range = struct { start: usize, end: usize };
 /// Extracts the range of the snapshot. Assumes that the snapshot is formatted as
 ///
 /// ```
-/// snap(@src(),
+/// oh.snap(@src(),
 ///     \\first line
 ///     \\second line
-/// )
+/// ).expectEqual(val);
 /// ```
 ///
-/// We could make this more robust by using `std.zig.Ast`, but sticking to manual string processing
-/// is simpler, and enforced consistent style of snapshots is a good thing.
+/// or
 ///
-/// While we expect to find a snapshot after a given line, this is not guaranteed (the file could
-/// have been modified between compilation and running the test), but should be rare enough to
-/// just fail with an assertion.
+/// ```
+/// oh.snap(
+/// @src(),
+///     \\first line
+///     \\second line
+/// ).expectEqual(val);
+/// ```
+///
+/// In the event that a file is modified, we fail the test with a (hopefully informative)
+/// error.
 fn snapRange(text: []const u8, src_line: u32) !Range {
     var offset: usize = 0;
     var line_number: u32 = 0;
