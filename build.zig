@@ -9,14 +9,12 @@ pub fn build(b: *std.Build) void {
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
     const optimize = b.standardOptimizeOption(.{});
 
-    const lib = b.addStaticLibrary(.{
-        .name = "ohsnap",
+    // Export as module to be available for @import("ohsnap") on user site
+    _ = b.addModule("ohsnap", .{
         .root_source_file = b.path("src/ohsnap.zig"),
         .target = target,
         .optimize = optimize,
     });
-
-    b.installArtifact(lib);
 
     // Creates a step for unit testing. This only builds the test executable
     // but does not run it.
@@ -33,7 +31,6 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     })) |pretty_dep| {
-        lib.root_module.addImport("pretty", pretty_dep.module("pretty"));
         lib_unit_tests.root_module.addImport("pretty", pretty_dep.module("pretty"));
     }
 
@@ -41,7 +38,6 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     })) |diffz_dep| {
-        lib.root_module.addImport("diffz", diffz_dep.module("diffz"));
         lib_unit_tests.root_module.addImport("diffz", diffz_dep.module("diffz"));
     }
 
@@ -49,7 +45,6 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     })) |mvzr_dep| {
-        lib.root_module.addImport("mvzr", mvzr_dep.module("mvzr"));
         lib_unit_tests.root_module.addImport("mvzr", mvzr_dep.module("mvzr"));
     }
 
