@@ -3,13 +3,15 @@
 //! Based on a core of TigerBeetle's snaptest.zig[^1].
 //!
 //! Integrates @timfayz's pretty-printing library, pretty[^2], in order
-//! to have general-purpose printing of data structures, and as a regex
-//! library, the Minimum Viable Zig Regex[^3].
+//! to have general-purpose printing of data structures, and for diffs,
+//! diffz[^3].  Last, but not least, for the regex library: the Minimum
+//! Viable Zig Regex[^4].
 //!
 //!
 //! [^1]: https://github.com/tigerbeetle/tigerbeetle/blob/main/src/testing/snaptest.zig.
 //! [^2]: https://github.com/timfayz/pretty
-//! [^3]: https://github.com/mnemnion/mvzr
+//! [^3]: https://github.com/ziglibs/diffz
+//! [^4]: https://github.com/mnemnion/mvzr
 
 const std = @import("std");
 const builtin = @import("builtin");
@@ -53,6 +55,7 @@ pretty_options: pretty.Options = pretty.Options{
 ///     \\Text of the snapshot.
 /// ).expectEqual(val);
 /// ```
+///
 /// With the `@src()` on the line before the text, which must be
 /// in multi-line format.
 pub fn snap(ohsnap: OhSnap, location: SourceLocation, text: []const u8) Snap {
@@ -105,7 +108,7 @@ pub const Snap = struct {
                     snapshot.ohsnap.pretty_options,
                 )
             else
-                break :get try std.fmt.allocPrint(allocator, "{any}", args);
+                break :get try std.fmt.allocPrint(allocator, "{any}", .{args});
         };
         defer allocator.free(got);
 
@@ -493,4 +496,59 @@ test "snap regex" {
         \\  .xtra: u16 = 1571
         ,
     ).expectEqual(an_rf);
+}
+
+const StampedStruct = struct {
+    message: []const u8,
+    tag: u64,
+    timestamp: isize,
+    pub fn init(msg: []const u8, tag: u64) StampedStruct {
+        return StampedStruct{
+            .message = msg,
+            .tag = tag,
+            .timestamp = std.time.timestamp(),
+        };
+    }
+};
+
+test "snap with timestamp" {
+    const oh = OhSnap{};
+    const with_stamp = StampedStruct.init(
+        "thoroughly frobnicate the encabulator",
+        17337,
+    );
+    try oh.snap(
+        @src(),
+        \\ohsnap.StampedStruct
+        \\  .message: []const u8
+        \\    "thoroughly frobnicate the encabulator"
+        \\  .tag: u64 = 17337
+        \\  .timestamp: isize = <^\d+$>
+        ,
+    ).expectEqual(with_stamp);
+}
+
+const CustomStruct = struct {
+    foo: u64,
+    bar: u66,
+    pub fn format(
+        self: CustomStruct,
+        comptime fmt: []const u8,
+        options: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void {
+        try writer.print("foo! <<{d}>>, bar! <<{d}>>", .{ self.foo, self.bar });
+        _ = fmt;
+        _ = options;
+    }
+};
+
+test "snapfmt" {
+    const oh = OhSnap{};
+    const foobar = CustomStruct{ .foo = 23, .bar = 42 };
+    try oh.snapfmt(
+        @src(),
+        \\foo! <<23>>, bar! <<42>>
+        ,
+    ).expectEqual(foobar);
 }
