@@ -1,4 +1,2 @@
-/zig-cache
-/zig-out
-/kcov-output
-/.zig-cache
+/zig-*
+/.zig-*
