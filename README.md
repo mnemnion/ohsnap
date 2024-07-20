@@ -15,7 +15,7 @@ Let me show you its features!
 The best way to use `ohsnap` is to install it using the [Zig Build System](https://ziglang.org/learn/build-system/).  From your project repo root, use `zig fetch` like this:
 
 ```sh
-zig fetch --save "httk://fix<tk>.com"
+zig fetch --save "https://github.com/mnemnion/ohsnap/archive/refs/tags/v0.1.0.tar.gz",
 ```
 
 Then add it to your test artifact like so:
@@ -142,7 +142,7 @@ test "snap with timestamp" {
 
 But of course, the next time we run the test, the timestamp will be different, so the test will fail.  We care about the message and the tag, we care that there _is_ a timestamp, but we don't care what the timestamp is, because we know it will be changing.
 
-For this purpose, `ohsnap` includes [mvzr](https://github.com/mnemnion/mvzr), the Minimum Viable Zig Regex library, which I wrote specifically for this purpose.
+For cases like this, `ohsnap` includes [mvzr](https://github.com/mnemnion/mvzr), the Minimum Viable Zig Regex library, which I wrote specifically for this purpose.
 
 Simply replace the timestamp like so:
 
@@ -171,7 +171,7 @@ Let's say you make a change:
     );
 ```
 
-The test will now fail: the word "thoroughly" will be highlighted in green, `turbo-` will be marked in red, and the timestamp will be cyan, indicating that the regex is still matching the pattern string.  If a change in the test means that the regex no longer matches, then the part of the test string which should match is highlighted in magenta.
+The test will now fail: the word "thoroughly" will be highlighted in green, `turbo-` will be marked in red, and the timestamp will be cyan, indicating that the regex is still matching the pattern string.  If a change in the test data means that the regex no longer matches, then the part of the test string which should match is highlighted in magenta.
 
 Since this was an intentional change, we need to update the snap:
 
@@ -210,7 +210,9 @@ Usage note: in some cases, the changes to the new string will displace the regex
 
 One of the great advantages of snapshot testing is that it's easy, so `ohsnap`, like the library it's based upon, is intentionally quite simple.  Simple, yet versatile, the latter to a large degree is owed to `pretty`, which can handle anything I've thrown at it, types, unions, you name it.
 
-It's a new library, but no changes to the interface are likely.  It's meant to do one thing, well, and otherwise stay out of the way.  That said, the regex library `mvzr` is pretty new, and so is the added code in `diffz`, so version-bumps to fix any bugs in those can be expected over time.
+It's a new library, but I expect the core interface to remain stable.  It's meant to do one thing, well, and otherwise stay out of the way.  I'm willing to consider suggestions for ways to make `ohsnap` better at what it already does, however.
+
+That said, the regex library `mvzr` is pretty new, and so is the added code in `diffz`, so version-bumps to fix any bugs in those can be expected over time.  The build system doesn't currently do update checks, so you'll need to check for updates manually, for now.
 
 I hope you enjoy it! Test early, test often, and do it the easy way.
 
