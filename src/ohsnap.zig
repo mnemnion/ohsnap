@@ -514,15 +514,15 @@ const StampedStruct = struct {
 test "snap with timestamp" {
     const oh = OhSnap{};
     const with_stamp = StampedStruct.init(
-        "thoroughly frobnicate the encabulator",
-        17337,
+        "frobnicate the turbo-encabulator",
+        37337,
     );
     try oh.snap(
         @src(),
         \\ohsnap.StampedStruct
         \\  .message: []const u8
-        \\    "thoroughly frobnicate the encabulator"
-        \\  .tag: u64 = 17337
+        \\    "frobnicate the turbo-encabulator"
+        \\  .tag: u64 = 37337
         \\  .timestamp: isize = <^\d+$>
         ,
     ).expectEqual(with_stamp);
@@ -551,4 +551,17 @@ test "snapfmt" {
         \\foo! <<23>>, bar! <<42>>
         ,
     ).expectEqual(foobar);
+}
+
+test "regex match" {
+    const oh = OhSnap{};
+    try oh.snap(
+        @src(),
+        \\?mvzr.Match
+        \\  .slice: []const u8
+        \\    "<^ $\d\.\d{2}$>"
+        \\  .start: usize = 0
+        \\  .end: usize = 15
+        ,
+    ).expectEqual(regex_finder.match("<^ $\\d\\.\\d{2}$>"));
 }
