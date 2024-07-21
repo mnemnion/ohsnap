@@ -126,14 +126,14 @@ test "snap with timestamp" {
     const oh = OhSnap{};
     const with_stamp = StampedStruct.init(
         "frobnicate the turbo-encabulator",
-        17337,
+        37337,
     );
     try oh.snap(
         @src(),
         \\ohsnap.StampedStruct
         \\  .message: []const u8
         \\    "frobnicate the turbo-encabulator"
-        \\  .tag: u64 = 17337
+        \\  .tag: u64 = 37337
         \\  .timestamp: isize = 1721501316
         ,
     ).expectEqual(with_stamp);
