@@ -87,7 +87,7 @@ pub fn snapfmt(ohsnap: OhSnap, location: SourceLocation, text: []const u8) Snap 
 }
 
 // Regex for detecting embedded regexen
-const ignore_regex_string = "<\\^.+?\\$>";
+const ignore_regex_string = "<\\^[^\n]+?\\$>";
 const regex_finder = mvzr.compile(ignore_regex_string).?;
 
 pub const Snap = struct {
@@ -216,12 +216,17 @@ pub const Snap = struct {
             const snap_end = found.end;
             const got_start = diffz.diffIndex(diffs.*, snap_start);
             const got_end = diffz.diffIndex(diffs.*, snap_end);
+            // Check if these are identical (use/mention distinction!)
+            if (std.mem.eql(u8, found.slice, got[got_start..got_end])) {
+                // That's fine then
+                continue :regex_while;
+            }
             // Trim the angle brackets off the regex.
             const exclude_regex = found.slice[1 .. found.slice.len - 1];
             const maybe_matcher = UserRegex.compile(exclude_regex);
             if (maybe_matcher == null) {
-                std.debug.print("issue with mvzr or regex, hard to say.\n", .{});
-                break :regex_while;
+                std.debug.print("Issue with mvzr or regex, hard to say. Regex string: {s}\n", .{exclude_regex});
+                continue :regex_while;
             }
             const matcher = maybe_matcher.?;
             const maybe_match = matcher.match(got[got_start..got_end]);
