@@ -10,7 +10,7 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     // Export as module to be available for @import("ohsnap") on user site
-    _ = b.addModule("ohsnap", .{
+    const snap_module = b.addModule("ohsnap", .{
         .root_source_file = b.path("src/ohsnap.zig"),
         .target = target,
         .optimize = optimize,
@@ -27,25 +27,26 @@ pub fn build(b: *std.Build) void {
 
     const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
 
-    if (b.lazyDependency("pretty", .{
+    const pretty_dep = b.dependency("pretty", .{
         .target = target,
         .optimize = optimize,
-    })) |pretty_dep| {
-        lib_unit_tests.root_module.addImport("pretty", pretty_dep.module("pretty"));
-    }
+    });
+    lib_unit_tests.root_module.addImport("pretty", pretty_dep.module("pretty"));
+    snap_module.addImport("pretty", pretty_dep.module("pretty"));
 
-    if (b.lazyDependency("diffz", .{
+    const diffz_dep = b.dependency("diffz", .{
         .target = target,
         .optimize = optimize,
-    })) |diffz_dep| {
-        lib_unit_tests.root_module.addImport("diffz", diffz_dep.module("diffz"));
-    }
+    });
+    lib_unit_tests.root_module.addImport("diffz", diffz_dep.module("diffz"));
+    snap_module.addImport("diffz", diffz_dep.module("diffz"));
 
     if (b.lazyDependency("mvzr", .{
         .target = target,
         .optimize = optimize,
     })) |mvzr_dep| {
         lib_unit_tests.root_module.addImport("mvzr", mvzr_dep.module("mvzr"));
+        snap_module.addImport("mvzr", mvzr_dep.module("mvzr"));
     }
 
     // Similar to creating the run step earlier, this exposes a `test` step to
