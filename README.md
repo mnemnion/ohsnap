@@ -15,7 +15,7 @@ Let me show you its features!
 The best way to use `ohsnap` is to install it using the [Zig Build System](https://ziglang.org/learn/build-system/).  From your project repo root, use `zig fetch` like this:
 
 ```sh
-zig fetch --save "https://github.com/mnemnion/ohsnap/archive/refs/tags/v0.1.1.tar.gz",
+zig fetch --save "https://github.com/mnemnion/ohsnap/archive/refs/tags/v0.1.1.tar.gz"
 ```
 
 Then add it to your test artifact like so:
