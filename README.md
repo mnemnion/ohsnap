@@ -57,7 +57,7 @@ test "snap something" {
 Note that the call to `@src()` has to be directly above the string, and the string has to be multi-line style, with the double backslashes: `\\`.  Both this:
 
 ```zig
-try op.snap(@src(),
+try oh.snap(@src(),
     \\ etc
     ,).expectEqual(snap_me);
 ```
@@ -65,7 +65,7 @@ try op.snap(@src(),
 And this:
 
 ```zig
-try op.snap(
+try oh.snap(
     @src(),
     \\ etc
   ,).expectEqual(snap_me);
