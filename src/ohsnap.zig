@@ -180,7 +180,7 @@ pub const Snap = struct {
 
         try file_text_updated.appendSlice(snapshot_prefix);
         {
-            var lines = std.mem.split(u8, got, "\n");
+            var lines = std.mem.splitScalar(u8, got, '\n');
             while (lines.next()) |line| {
                 try file_text_updated.writer().print("{s}\\\\{s}\n", .{ indent, line });
             }
@@ -377,7 +377,7 @@ fn snapRange(text: []const u8, src_line: u32) !Range {
     var offset: usize = 0;
     var line_number: u32 = 0;
 
-    var lines = std.mem.split(u8, text, "\n");
+    var lines = std.mem.splitScalar(u8, text, '\n');
     const snap_start = while (lines.next()) |line| : (line_number += 1) {
         if (line_number == src_line) {
             if (std.mem.indexOf(u8, line, "@src()") == null) {
@@ -401,7 +401,7 @@ fn snapRange(text: []const u8, src_line: u32) !Range {
         offset += line.len + 1; // 1 for \n
     } else unreachable;
 
-    lines = std.mem.split(u8, text[snap_start..], "\n");
+    lines = std.mem.splitScalar(u8, text[snap_start..], '\n');
     const snap_end = while (lines.next()) |line| {
         if (!isMultilineString(line)) {
             break offset;
