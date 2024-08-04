@@ -27,20 +27,21 @@ pub fn build(b: *std.Build) void {
 
     const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
 
-    const pretty_dep = b.dependency("pretty", .{
+    if (b.lazyDependency("pretty", .{
         .target = target,
         .optimize = optimize,
-    });
-    lib_unit_tests.root_module.addImport("pretty", pretty_dep.module("pretty"));
-    snap_module.addImport("pretty", pretty_dep.module("pretty"));
+    })) |pretty_dep| {
+        lib_unit_tests.root_module.addImport("pretty", pretty_dep.module("pretty"));
+        snap_module.addImport("pretty", pretty_dep.module("pretty"));
+    }
 
-    const diffz_dep = b.dependency("diffz", .{
+    if (b.lazyDependency("diffz", .{
         .target = target,
         .optimize = optimize,
-    });
-    lib_unit_tests.root_module.addImport("diffz", diffz_dep.module("diffz"));
-    snap_module.addImport("diffz", diffz_dep.module("diffz"));
-
+    })) |diffz_dep| {
+        lib_unit_tests.root_module.addImport("diffz", diffz_dep.module("diffz"));
+        snap_module.addImport("diffz", diffz_dep.module("diffz"));
+    }
     if (b.lazyDependency("mvzr", .{
         .target = target,
         .optimize = optimize,
