@@ -101,7 +101,7 @@ pub const Snap = struct {
     /// Compare the snapshot with a formatted string.
     pub fn expectEqual(snapshot: *const Snap, args: anytype) !void {
         const got = get: {
-            if (snapshot.pretty) // TODO look into options here
+            if (snapshot.pretty)
                 break :get try pretty.dump(
                     allocator,
                     args,
@@ -117,7 +117,7 @@ pub const Snap = struct {
 
     /// Compare the snapshot with a given string.
     pub fn diff(snapshot: *const Snap, got: []const u8) !void {
-        // Regex finding regex-ignore regions.
+        // Check for an update first
         const update_idx = std.mem.indexOf(u8, snapshot.text, "<!update>");
         if (update_idx) |idx| {
             if (idx == 0) {
@@ -137,6 +137,7 @@ pub const Snap = struct {
         defer diffz.deinitDiffList(allocator, &diffs);
         if (diffDiffers(diffs)) {
             try diffz.diffCleanupSemantic(allocator, &diffs);
+            // Check if we have a regex in the snapshot
             const match = regex_finder.match(snapshot.text);
             if (match) |_| {
                 diffs = try regexFixup(&diffs, snapshot, got);
@@ -149,7 +150,7 @@ pub const Snap = struct {
                 \\
                 \\{s}
                 \\
-                \\ To replace contents, add <!update> as the first line of the snap text.
+                \\  To replace contents, add <!update> as the first line of the snap text.
                 \\
                 \\
             ,
@@ -431,7 +432,7 @@ fn getIndent(line: []const u8) []const u8 {
 }
 
 test "snap test" {
-    // Change either the snapshot or the struct to make these test fail
+    // Change either the snapshot or the struct to make these tests fail
     const oh = OhSnap{};
     // Simple anon struct
     try oh.snap(@src(),
@@ -526,7 +527,7 @@ test "snap with timestamp" {
         @src(),
         \\ohsnap.StampedStruct
         \\  .message: []const u8
-        \\    "frobnicate the turbo-encabulator"
+        \\    "frobnicate the turbo-<^\w+$>"
         \\  .tag: u64 = 37337
         \\  .timestamp: isize = <^\d+$>
         ,
