@@ -15,7 +15,7 @@ Let me show you its features!
 The best way to use `ohsnap` is to install it using the [Zig Build System](https://ziglang.org/learn/build-system/).  From your project repo root, use `zig fetch` like this:
 
 ```sh
-zig fetch --save "https://github.com/mnemnion/ohsnap/archive/refs/tags/v0.2.2.tar.gz"
+zig fetch --save "https://github.com/mnemnion/ohsnap/archive/refs/tags/v0.3.0.tar.gz"
 ```
 
 Then add it to your test artifact like so:
@@ -94,7 +94,7 @@ test "snap something" {
 
 The snaptest will see the `<!update>`, which must be the beginning of the string, and replace it in your file with the output of the pretty printing.  Easy!
 
-If your data structure has a `.format` method, and you'd prefer to use that as a basis, just call `oh.snapfmt` in the same way.
+If your data structure has a `.format` method, and you'd prefer to use that as a basis, simply use `.expectEqualFmt` instead of `.expectEqual`.
 
 If, down the road, the snapshot doesn't compare to the expected string, `ohsnap` will use [diffz](https://github.com/mnemnion/diffz/tree/more-port)[^1], a Zig port of [diff-match-patch](https://github.com/google/diff-match-patch), to produce a terminal-colored character-level diff of the expected string with the actual string, making it easy to see exactly what's changed.  These changes are either a bug, or a new feature.  If it's the former, fix it, if it's the latter, just add `<!update>` to the head of the string again, and `ohsnap` will oblige.
 
@@ -160,7 +160,7 @@ Simply replace the timestamp like so:
 
 Through the magic of diffing, `ohsnap` will identify the part of the new string which matches `<^\d+$>`, and try to match the regular expression against that part of the string.  Since this matches, the test now passes.
 
-Note that the regex must be in the form `<^.+?$>` (the exact regex we use is `<\^.+?\$>`, in fact), the `^` and `$` are essential and are load-bearing parts of the expression.  This prevents partial matches, as well as making the regex portions of a snapshot test easier for `ohsnap` to find.  Note that because this is a multi-line string, you don't have to do double-backslashes: its `<^\d+$>`, not `<^\\d+$>`.  To be very clear, the `<` and `>` demarcate the regex, they aren't part of it.
+Note that the regex must be in the form `<^.+?$>` (the exact regex we use is `<\^[^\n]+?\$>`, in fact), the `^` and `$` are essential and are load-bearing parts of the expression.  This prevents partial matches, as well as making the regex portions of a snapshot test easier for `ohsnap` to find.  Note that because this is a multi-line string, you don't have to do double-backslashes: its `<^\d+$>`, not `<^\\d+$>`.  To be very clear, the `<` and `>` demarcate the regex, they aren't part of it.
 
 Let's say you make a change:
 
@@ -205,6 +205,14 @@ Once again, through the magic of diffing, `ohsnap` will locate the regexen in th
 Voila!
 
 Usage note: in some cases, the changes to the new string will displace the regex, you can tell because some part of the regex itself will be exposed in red.  When that happens, the update may not apply correctly either: the regex will always be moved to the new string intact, but it may or may not be in the correct place (usually, not).  This can generally be fixed by making changes to the expected-value string until whatever part of the regex was sticking out of the diff is no longer exposed.  Sometimes running `<!update>` twice will fix it as well.
+
+## Developing With Snapshots
+
+When we're programming, there are always points in the process where a data structure is in flux, and `ohsnap` can help you out with that as well.  Instead of `.expectEqual(var)`, use `.show(var)`, or `.showFmt(var)`.  This will print the snapshot, whether it diffs or not, and it doesn't count as a test.  `<!update>` continues to work in the same way, but an updated `.show` snapshot counts as a failed test.  The update logic is fairly simple, and updating often changes the line numbering of the file, so this helps update one at a time.  Note that you can add the `<!update>` string to any number of snapshots, and just keep recompiling the test suite until they all pass.  Also, if `ohsnap` can't find the snapshot because it moved, nothing untoward will happen, it will just report a failed test, and running it again will fix the problem if it was caused by a previous update.
+
+This also works as a minimalist way to regress a snapshot test, when you aren't sure what the final value will be.
+
+Whenever you're satisfied with the output, just change `.show` to its `.expect` cousin, and now you've got a test.
 
 ## That's It!
 
