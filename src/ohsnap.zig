@@ -66,26 +66,6 @@ pub fn snap(ohsnap: OhSnap, location: SourceLocation, text: []const u8) Snap {
     };
 }
 
-/// Creates a new Snap using the type's `.format` method.
-///
-/// For the update logic to work, *must* be formatted as:
-///
-/// ```
-/// try oh.snapfmt(@src(), // This can be on the next line
-///     \\Text of the snapshot.
-/// ).expectEqual(val);
-/// ```
-/// With the `@src()` on the line before the text, which must be
-/// in multi-line format.
-pub fn snapfmt(ohsnap: OhSnap, location: SourceLocation, text: []const u8) Snap {
-    return Snap{
-        .location = location,
-        .text = text,
-        .ohsnap = ohsnap,
-        .pretty = false,
-    };
-}
-
 // Regex for detecting embedded regexen
 const ignore_regex_string = "<\\^[^\n]+?\\$>";
 const regex_finder = mvzr.compile(ignore_regex_string).?;
@@ -94,69 +74,97 @@ pub const Snap = struct {
     location: SourceLocation,
     text: []const u8,
     ohsnap: OhSnap,
-    pretty: bool = true,
 
     const allocator = std.testing.allocator;
 
-    /// Compare the snapshot with a formatted string.
+    /// Compare the snapshot with a pretty-printed string.
     pub fn expectEqual(snapshot: *const Snap, args: anytype) !void {
-        const got = get: {
-            if (snapshot.pretty)
-                break :get try pretty.dump(
-                    allocator,
-                    args,
-                    snapshot.ohsnap.pretty_options,
-                )
-            else
-                break :get try std.fmt.allocPrint(allocator, "{any}", .{args});
-        };
+        const got = try pretty.dump(
+            allocator,
+            args,
+            snapshot.ohsnap.pretty_options,
+        );
         defer allocator.free(got);
+        try snapshot.diff(got, true);
+    }
 
-        try snapshot.diff(got);
+    /// Compare the snapshot with a .fmt printed string.
+    pub fn expectEqualFmt(snapshot: *const Snap, args: anytype) !void {
+        const got = try std.fmt.allocPrint(allocator, "{any}", .{args});
+        defer allocator.free(got);
+        try snapshot.diff(got, true);
+    }
+
+    /// Show the snapshot diff without testing
+    pub fn show(snapshot: *const Snap, args: anytype) !void {
+        const got = try pretty.dump(
+            allocator,
+            args,
+            snapshot.ohsnap.pretty_options,
+        );
+        defer allocator.free(got);
+        try snapshot.diff(got, false);
+    }
+
+    /// Show a diff with the .fmt string without testing.
+    pub fn showFmt(snapshot: *const Snap, args: anytype) !void {
+        const got = try std.fmt.allocPrint(allocator, "{any}", .{args});
+        defer allocator.free(got);
+        try snapshot.diff(got, false);
     }
 
     /// Compare the snapshot with a given string.
-    pub fn diff(snapshot: *const Snap, got: []const u8) !void {
-        // Check for an update first
-        const update_idx = std.mem.indexOf(u8, snapshot.text, "<!update>");
-        if (update_idx) |idx| {
-            if (idx == 0) {
-                const match = regex_finder.match(snapshot.text);
-                if (match) |_| {
-                    return try patchAndUpdate(snapshot, got);
+    pub fn diff(snapshot: *const Snap, got: []const u8, test_it: bool) !void {
+        if (test_it) {
+            // Check for an update first
+            const update_idx = std.mem.indexOf(u8, snapshot.text, "<!update>");
+            if (update_idx) |idx| {
+                if (idx == 0) {
+                    const match = regex_finder.match(snapshot.text);
+                    if (match) |_| {
+                        return try patchAndUpdate(snapshot, got);
+                    } else {
+                        return try updateSnap(snapshot, got);
+                    }
                 } else {
-                    return try updateSnap(snapshot, got);
+                    // Probably a user mistake but the diff logic will surface that
                 }
-            } else {
-                // Probably a user mistake but the diff logic will surface that
             }
         }
 
         const dmp = diffz{ .diff_timeout = 0 };
         var diffs = try dmp.diff(allocator, snapshot.text, got, false);
         defer diffz.deinitDiffList(allocator, &diffs);
-        if (diffDiffers(diffs)) {
+        if (diffDiffers(diffs) or !test_it) {
             try diffz.diffCleanupSemantic(allocator, &diffs);
             // Check if we have a regex in the snapshot
             const match = regex_finder.match(snapshot.text);
             if (match) |_| {
                 diffs = try regexFixup(&diffs, snapshot, got);
-                if (!diffDiffers(diffs)) return;
+                if (test_it)
+                    if (!diffDiffers(diffs)) return;
             }
             const diff_string = try diffz.diffPrettyFormatXTerm(allocator, diffs);
             defer allocator.free(diff_string);
+            const differs = if (test_it) " differs" else "";
             std.debug.print(
-                \\Snapshot on line {s}{d}{s} differs:
+                \\Snapshot on line {s}{d}{s}{s}:
                 \\
                 \\{s}
                 \\
-                \\  To replace contents, add <!update> as the first line of the snap text.
-                \\
-                \\
             ,
-                .{ "\x1b[33m", snapshot.location.line, "\x1b[m", diff_string },
+                .{
+                    "\x1b[33m",
+                    snapshot.location.line + 1,
+                    "\x1b[m",
+                    differs,
+                    diff_string,
+                },
             );
-            return try std.testing.expect(false);
+            if (test_it) {
+                std.debug.print("\n\nTo replace contents, add <!update> as the first line of the snap text.\n", .{});
+                return try std.testing.expect(false);
+            } else return;
         }
     }
 
@@ -465,9 +473,6 @@ test "snap test" {
         \\          "snap"
         \\      [1]: builtin.Type.Declaration
         \\        .name: [:0]const u8
-        \\          "snapfmt"
-        \\      [2]: builtin.Type.Declaration
-        \\        .name: [:0]const u8
         \\          "Snap"
         \\    .is_tuple: bool = false
         ,
@@ -498,7 +503,7 @@ test "snap regex" {
         \\  .str: []const u8
         \\    "argle<^\w+?$>gle"
         \\  .pi: f64 = 3.14159e0
-        \\  .rand: u64 = <^\d+$>
+        \\  .rand: u64 = <^[0-9]+$>
         \\  .xtra: u16 = 1571
         ,
     ).expectEqual(an_rf);
@@ -549,14 +554,14 @@ const CustomStruct = struct {
     }
 };
 
-test "snapfmt" {
+test "expectEqualFmt" {
     const oh = OhSnap{};
     const foobar = CustomStruct{ .foo = 23, .bar = 42 };
-    try oh.snapfmt(
+    try oh.snap(
         @src(),
         \\foo! <<23>>, bar! <<42>>
         ,
-    ).expectEqual(foobar);
+    ).expectEqualFmt(foobar);
 }
 
 test "regex match" {
