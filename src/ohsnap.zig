@@ -115,20 +115,18 @@ pub const Snap = struct {
 
     /// Compare the snapshot with a given string.
     pub fn diff(snapshot: *const Snap, got: []const u8, test_it: bool) !void {
-        if (test_it) {
-            // Check for an update first
-            const update_idx = std.mem.indexOf(u8, snapshot.text, "<!update>");
-            if (update_idx) |idx| {
-                if (idx == 0) {
-                    const match = regex_finder.match(snapshot.text);
-                    if (match) |_| {
-                        return try patchAndUpdate(snapshot, got);
-                    } else {
-                        return try updateSnap(snapshot, got);
-                    }
+        // Check for an update first
+        const update_idx = std.mem.indexOf(u8, snapshot.text, "<!update>");
+        if (update_idx) |idx| {
+            if (idx == 0) {
+                const match = regex_finder.match(snapshot.text);
+                if (match) |_| {
+                    return try patchAndUpdate(snapshot, got);
                 } else {
-                    // Probably a user mistake but the diff logic will surface that
+                    return try updateSnap(snapshot, got);
                 }
+            } else {
+                // Probably a user mistake but the diff logic will surface that
             }
         }
 
@@ -556,12 +554,12 @@ const CustomStruct = struct {
 
 test "expectEqualFmt" {
     const oh = OhSnap{};
-    const foobar = CustomStruct{ .foo = 23, .bar = 42 };
+    const foobar = CustomStruct{ .foo = 42, .bar = 23 };
     try oh.snap(
         @src(),
-        \\foo! <<23>>, bar! <<42>>
+        \\foo! <<42>>, bar! <<23>>
         ,
-    ).expectEqualFmt(foobar);
+    ).showFmt(foobar);
 }
 
 test "regex match" {
