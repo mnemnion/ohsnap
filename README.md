@@ -15,7 +15,7 @@ Let me show you its features!
 The best way to use `ohsnap` is to install it using the [Zig Build System](https://ziglang.org/learn/build-system/).  From your project repo root, use `zig fetch` like this:
 
 ```sh
-zig fetch --save "https://github.com/mnemnion/ohsnap/archive/refs/tags/v0.3.0.tar.gz"
+zig fetch --save "https://github.com/mnemnion/ohsnap/archive/refs/tags/v0.3.1.tar.gz"
 ```
 
 Then add it to your test artifact like so:
@@ -126,14 +126,14 @@ test "snap with timestamp" {
     const oh = OhSnap{};
     const with_stamp = StampedStruct.init(
         "frobnicate the turbo-encabulator",
-        37337,
+        31337,
     );
     try oh.snap(
         @src(),
         \\ohsnap.StampedStruct
         \\  .message: []const u8
         \\    "frobnicate the turbo-encabulator"
-        \\  .tag: u64 = 37337
+        \\  .tag: u64 = 31337
         \\  .timestamp: isize = 1721501316
         ,
     ).expectEqual(with_stamp);
@@ -152,7 +152,7 @@ Simply replace the timestamp like so:
         \\ohsnap.StampedStruct
         \\  .message: []const u8
         \\    "frobnicate the turbo-encabulator"
-        \\  .tag: u64 = 37337
+        \\  .tag: u64 = 31337
         \\  .timestamp: isize = <^\d+$>
         ,
     ).expectEqual(with_stamp);
@@ -167,7 +167,7 @@ Let's say you make a change:
 ```zig
     const with_stamp = StampedStruct.init(
         "thoroughly frobnicate the encabulator",
-        37337,
+        31337,
     );
 ```
 
@@ -182,7 +182,7 @@ Since this was an intentional change, we need to update the snap:
         \\ohsnap.StampedStruct
         \\  .message: []const u8
         \\    "frobnicate the turbo-encabulator"
-        \\  .tag: u64 = 37337
+        \\  .tag: u64 = 31337
         \\  .timestamp: isize = <^\d+$>
         ,
     ).expectEqual(with_stamp);
@@ -196,7 +196,7 @@ Once again, through the magic of diffing, `ohsnap` will locate the regexen in th
         \\ohsnap.StampedStruct
         \\  .message: []const u8
         \\    "thoroughly frobnicate the encabulator"
-        \\  .tag: u64 = 37337
+        \\  .tag: u64 = 31337
         \\  .timestamp: isize = <^\d+$>
         ,
     ).expectEqual(with_stamp);
