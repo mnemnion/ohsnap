@@ -117,6 +117,17 @@ pub const Snap = struct {
     pub fn diff(snapshot: *const Snap, got: []const u8, test_it: bool) !void {
         // Check for an update first
         const update_idx = std.mem.indexOf(u8, snapshot.text, "<!update>");
+        const update_envvar = std.process.hasEnvVarConstant("SNAP_UPDATE");
+
+        if (update_envvar) {
+            const match = regex_finder.match(snapshot.text);
+            if (match) |_| {
+                return try patchAndUpdate(snapshot, got);
+            } else {
+                return try updateSnap(snapshot, got);
+            }
+        }
+
         if (update_idx) |idx| {
             if (idx == 0) {
                 const match = regex_finder.match(snapshot.text);
