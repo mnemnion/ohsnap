@@ -25,8 +25,8 @@
 
     .dependencies = .{
         .pretty = .{
-            .url = "https://github.com/timfayz/pretty/archive/refs/tags/v0.10.4.tar.gz",
-            .hash = "1220db3fa6510f1686587aab46ac92a882d4f5a287a20d7b687f654a7b8ce3a0e8d6",
+            .url = "https://github.com/timfayz/pretty/archive/6fbc0d45b7d397b67db0b0af8f2e2000036f977f.tar.gz",
+            .hash = "12209290db27d058b481801cf9a79c706fb0c482e7f6378d50495750aae19524d4b7",
         },
         .diffz = .{
             .url = "https://github.com/mnemnion/diffz/archive/refs/tags/v0.0.4-rc1.tar.gz",
