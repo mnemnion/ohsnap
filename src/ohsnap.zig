@@ -172,8 +172,10 @@ pub const Snap = struct {
 
         const arena_allocator = arena.allocator();
 
+        // If a src directory exists, use it otherwise use the cwd
+        const src_dir = std.fs.cwd().openDir("src", std.fs.Dir.OpenOptions{}) catch std.fs.cwd();
         const file_text =
-            try std.fs.cwd().readFileAlloc(arena_allocator, snapshot.location.file, 1024 * 1024);
+            try src_dir.readFileAlloc(arena_allocator, snapshot.location.file, 1024 * 1024);
         var file_text_updated = try std.ArrayList(u8).initCapacity(arena_allocator, file_text.len);
 
         const line_zero_based = snapshot.location.line - 1;
@@ -194,7 +196,7 @@ pub const Snap = struct {
         }
         try file_text_updated.appendSlice(snapshot_suffix);
 
-        try std.fs.cwd().writeFile(.{
+        try src_dir.writeFile(.{
             .sub_path = snapshot.location.file,
             .data = file_text_updated.items,
         });
