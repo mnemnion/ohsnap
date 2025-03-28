@@ -6,16 +6,18 @@
     //
     // It is redundant to include "zig" in this name because it is already
     // within the Zig package namespace.
-    .name = "ohsnap",
+    .name = .ohsnap,
 
     // This is a [Semantic Version](https://semver.org/).
     // In a future version of Zig it will be used for package deduplication.
     .version = "0.3.1",
 
+    .fingerprint = 0xf602e222ca736c89,
+
     // This field is optional.
     // This is currently advisory only; Zig does not yet do anything
     // with this value.
-    //.minimum_zig_version = "0.11.0",
+    .minimum_zig_version = "0.14.0",
 
     // This field is optional.
     // Each dependency must either provide a `url` and `hash`, or a `path`.
@@ -24,10 +26,6 @@
     // internet connectivity.
 
     .dependencies = .{
-        .pretty = .{
-            .url = "https://github.com/timfayz/pretty/archive/refs/tags/v0.10.4.tar.gz",
-            .hash = "1220db3fa6510f1686587aab46ac92a882d4f5a287a20d7b687f654a7b8ce3a0e8d6",
-        },
         .diffz = .{
             .url = "https://github.com/mnemnion/diffz/archive/refs/tags/v0.0.4-rc1.tar.gz",
             .hash = "1220806da7bb203c300e373429c915bd6c2a80dde3371b3cfceba6fb091b6fe1b28d",
@@ -35,6 +33,10 @@
         .mvzr = .{
             .url = "https://github.com/mnemnion/mvzr/archive/refs/tags/v0.2.0.tar.gz",
             .hash = "1220b59a0a73a39e9cd9d0423e6c4c6a3d9260540f599c9846d70242ce5740c49b6e",
+        },
+        .pretty = .{
+            .url = "https://github.com/timfayz/pretty/archive/refs/tags/latest.tar.gz",
+            .hash = "pretty-0.10.4-AAAAAM9GAQATvLkzFJ6-Y9r_NWCAC2Q4hOKxHSnJXQLD",
         },
     },
     .paths = .{

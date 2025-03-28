@@ -15,7 +15,7 @@ Let me show you its features!
 The best way to use `ohsnap` is to install it using the [Zig Build System](https://ziglang.org/learn/build-system/).  From your project repo root, use `zig fetch` like this:
 
 ```sh
-zig fetch --save "https://github.com/mnemnion/ohsnap/archive/refs/tags/v0.3.1.tar.gz"
+zig fetch --save "https://github.com/mnemnion/ohsnap/archive/refs/tags/v0.4.0.tar.gz"
 ```
 
 Then add it to your test artifact like so:
@@ -213,6 +213,49 @@ When we're programming, there are always points in the process where a data stru
 This also works as a minimalist way to regress a snapshot test, when you aren't sure what the final value will be.
 
 Whenever you're satisfied with the output, just change `.show` to its `.expect` cousin, and now you've got a test.
+
+## Unusual Directory Structures
+
+Zig 0.14 changed some values in `SourceLocation`, which is returned by `@src()`.  In particular, the filenames are now relative to the module root file's directory, not the repository root directory.
+
+This has required some changes to `ohsnap`.  In the majority of cases, a module is rooted in the `/src` directory, and in those cases, nothing further needs to be done.  The library will make that assumption and updates will proceed on that basis.
+
+However, in the event that a test module is rooted in some other directory, or even that there are several test modules rooted in several distinct directories, `ohsnap` must be configured to find those directories given those roots.
+
+The most satisfactory solution I was able to work out is two options, `module_name` and `root_directory`.  Both have the type `[]const []const u8`.
+
+Given a test called `"root"` in the directory `/test`, `ohsnap` can be passed those values like so:
+
+```sh
+> zig build test -Dmodule_name=root -Droot_directory=test
+```
+In this case, updating a snapshot will look for files in `root` in the directory `./test`.  If `module_name` doesn't contain the name of the module, this will still fall back to `./src`.
+
+This can be repeated for as many test modules and associated directories as is needed.  You can find what the build system names a module by adding a test like this to that module:
+
+```zig
+test "print module name" {
+    std.debug.print("module name is {s}\n", .{@src.module});
+}
+```
+
+This will only change if certain changes to the build script take place, so there's no need to leave the test running once the name is obtained.
+
+These values can be provided from the build script as well, like so:
+
+```zig
+if b.lazyDependency("ohsnap", .{
+    .target = target,
+    .optimize = optimize, // etc
+    module_name = .{ "root", "root1"},
+    root_directory = .{ "test", "src/subdir"},
+}) |ohsnap_mod| {
+    // Module imported in the usual fashion
+     lib_unit_tests.root_module.addImport("ohsnap", ohsnap_dep.module("ohsnap"));
+     lib_submodule_unit_tests.root_module.addImport("ohsnap", ohsnap_dep.module("ohsnap"));
+}
+```
+This solution is not perfectly satisfactory, but it retains the generality of the library with a minimum of fussing about.  I hope subsequent work on Zig will restore the ability to reliably open a file, given the return value of `@src()`, in some fashion.
 
 ## That's It!
 

@@ -15,6 +15,7 @@
 
 const std = @import("std");
 const builtin = @import("builtin");
+const config = @import("config");
 const pretty = @import("pretty");
 const diffz = @import("diffz");
 const mvzr = @import("mvzr");
@@ -34,6 +35,13 @@ comptime {
     assert(builtin.is_test);
 }
 
+// Number of entries in config must be even (module root, directory)
+comptime {
+    if (config.module_name.len != config.root_directory.len) {
+        @compileError("Every module_name must have a corresponding root_directory.");
+    }
+}
+
 const OhSnap = @This();
 
 pretty_options: pretty.Options = pretty.Options{
@@ -42,6 +50,7 @@ pretty_options: pretty.Options = pretty.Options{
     .array_max_len = 0,
     .array_show_prim_type_info = true,
     .type_name_max_len = 0,
+    .type_name_fold_parens = 0,
     .str_max_len = 0,
     .show_tree_lines = true,
 },
@@ -172,8 +181,24 @@ pub const Snap = struct {
 
         const arena_allocator = arena.allocator();
 
+        var maybe_dir_str: ?[]const u8 = null;
+        {
+            var i: usize = 0;
+            while (i < config.module_name.len) : (i += 1) {
+                if (std.mem.eql(u8, config.module_name[i], snapshot.location.module)) {
+                    maybe_dir_str = config.root_directory[i];
+                    break;
+                }
+            }
+        }
+
+        const dir_str = maybe_dir_str orelse "src";
+
+        var mod_dir = try std.fs.cwd().openDir(dir_str, .{});
+        defer mod_dir.close();
+
         const file_text =
-            try std.fs.cwd().readFileAlloc(arena_allocator, snapshot.location.file, 1024 * 1024);
+            try mod_dir.readFileAlloc(arena_allocator, snapshot.location.file, 1024 * 1024);
         var file_text_updated = try std.ArrayList(u8).initCapacity(arena_allocator, file_text.len);
 
         const line_zero_based = snapshot.location.line - 1;
@@ -194,7 +219,7 @@ pub const Snap = struct {
         }
         try file_text_updated.appendSlice(snapshot_suffix);
 
-        try std.fs.cwd().writeFile(.{
+        try mod_dir.writeFile(.{
             .sub_path = snapshot.location.file,
             .data = file_text_updated.items,
         });
@@ -442,7 +467,7 @@ test "snap test" {
     const oh = OhSnap{};
     // Simple anon struct
     try oh.snap(@src(),
-        \\struct{comptime foo: *const [10:0]u8 = "bazbuxquux", comptime baz: comptime_int = 27}
+        \\ohsnap.test.snap test__struct_<^\d+$>
         \\  .foo: *const [10:0]u8
         \\    "bazbuxquux"
         \\  .baz: comptime_int = 27
@@ -451,7 +476,7 @@ test "snap test" {
     try oh.snap(
         @src(),
         \\builtin.Type
-        \\  .Struct: builtin.Type.Struct
+        \\  .struct: builtin.Type.Struct
         \\    .layout: builtin.Type.ContainerLayout
         \\      .auto
         \\    .backing_integer: ?type
@@ -462,7 +487,7 @@ test "snap test" {
         \\          "pretty_options"
         \\        .type: type
         \\          pretty.Options
-        \\        .default_value: ?*const anyopaque
+        \\        .default_value_ptr: ?*const anyopaque
         \\        .is_comptime: bool = false
         \\        .alignment: comptime_int = 8
         \\    .decls: []const builtin.Type.Declaration
@@ -559,7 +584,7 @@ test "expectEqualFmt" {
         @src(),
         \\foo! <<42>>, bar! <<23>>
         ,
-    ).showFmt(foobar);
+    ).expectEqualFmt(foobar);
 }
 
 test "regex match" {
@@ -572,5 +597,7 @@ test "regex match" {
         \\  .start: usize = 0
         \\  .end: usize = 15
         ,
-    ).expectEqual(regex_finder.match("<^ $\\d\\.\\d{2}$>"));
+    ).expectEqual(regex_finder.match(
+        \\<^ $\d\.\d{2}$>
+    ));
 }
