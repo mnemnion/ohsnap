@@ -99,7 +99,7 @@ pub const Snap = struct {
 
     /// Compare the snapshot with a .fmt printed string.
     pub fn expectEqualFmt(snapshot: *const Snap, args: anytype) !void {
-        const got = try std.fmt.allocPrint(allocator, "{any}", .{args});
+        const got = try std.fmt.allocPrint(allocator, "{f}", .{args});
         defer allocator.free(got);
         try snapshot.diff(got, true);
     }
@@ -117,7 +117,7 @@ pub const Snap = struct {
 
     /// Show a diff with the .fmt string without testing.
     pub fn showFmt(snapshot: *const Snap, args: anytype) !void {
-        const got = try std.fmt.allocPrint(allocator, "{any}", .{args});
+        const got = try std.fmt.allocPrint(allocator, "{f}", .{args});
         defer allocator.free(got);
         try snapshot.diff(got, false);
     }
@@ -210,14 +210,14 @@ pub const Snap = struct {
 
         const indent = getIndent(snapshot_text);
 
-        try file_text_updated.appendSlice(snapshot_prefix);
+        try file_text_updated.appendSlice(arena_allocator, snapshot_prefix);
         {
             var lines = std.mem.splitScalar(u8, got, '\n');
             while (lines.next()) |line| {
-                try file_text_updated.writer().print("{s}\\\\{s}\n", .{ indent, line });
+                try file_text_updated.writer(arena_allocator).print("{s}\\\\{s}\n", .{ indent, line });
             }
         }
-        try file_text_updated.appendSlice(snapshot_suffix);
+        try file_text_updated.appendSlice(arena_allocator, snapshot_suffix);
 
         try mod_dir.writeFile(.{
             .sub_path = snapshot.location.file,
@@ -306,25 +306,25 @@ pub const Snap = struct {
             // Should always mean we have at least two (but we care about
             // having one) diffs rubbed out.
             var formatted = try std.ArrayList(u8).initCapacity(allocator, 10);
-            defer formatted.deinit();
+            defer formatted.deinit(allocator);
             assert(new_diffs.items[diffs_idx].operation == .equal and new_diffs.items[diffs_idx].text.len == 0);
             if (maybe_match) |_| {
                 // Decorate with cyan for a match.
-                try formatted.appendSlice("\x1b[36m");
-                try formatted.appendSlice(got[got_start..got_end]);
-                try formatted.appendSlice("\x1b[m");
+                try formatted.appendSlice(allocator, "\x1b[36m");
+                try formatted.appendSlice(allocator, got[got_start..got_end]);
+                try formatted.appendSlice(allocator, "\x1b[m");
                 new_diffs.items[diffs_idx] = Diff{
                     .operation = .equal,
-                    .text = try formatted.toOwnedSlice(),
+                    .text = try formatted.toOwnedSlice(allocator),
                 };
             } else {
                 // Decorate magenta for no match, and make it an insert (hence, error)
-                try formatted.appendSlice("\x1b[35m");
-                try formatted.appendSlice(got[got_start..got_end]);
-                try formatted.appendSlice("\x1b[m");
+                try formatted.appendSlice(allocator, "\x1b[35m");
+                try formatted.appendSlice(allocator, got[got_start..got_end]);
+                try formatted.appendSlice(allocator, "\x1b[m");
                 new_diffs.items[diffs_idx] = Diff{
                     .operation = .insert,
-                    .text = try formatted.toOwnedSlice(),
+                    .text = try formatted.toOwnedSlice(allocator),
                 };
             }
             diffs_idx += 1;
@@ -347,18 +347,18 @@ pub const Snap = struct {
         var new_diffs = DiffList{};
         defer diffz.deinitDiffList(allocator, &new_diffs);
         var new_got = try std.ArrayList(u8).initCapacity(allocator, @max(got.len, snapshot.text.len));
-        defer new_got.deinit();
+        defer new_got.deinit(allocator);
         while (regex_find.next()) |found| {
             // Find this location in the got string.
             const snap_start = found.start;
             const snap_end = found.end;
             const got_start = diffz.diffIndex(diffs, snap_start);
             const got_end = diffz.diffIndex(diffs, snap_end);
-            try new_got.appendSlice(got[got_idx..got_start]);
-            try new_got.appendSlice(found.slice);
+            try new_got.appendSlice(allocator, got[got_idx..got_start]);
+            try new_got.appendSlice(allocator, found.slice);
             got_idx = got_end;
         }
-        try new_got.appendSlice(got[got_idx..]);
+        try new_got.appendSlice(allocator, got[got_idx..]);
         return try updateSnap(snapshot, new_got.items);
     }
 
@@ -525,7 +525,7 @@ test "snap regex" {
         \\ohsnap.test.snap regex.RandomField
         \\  .str: []const u8
         \\    "argle<^\w+?$>gle"
-        \\  .pi: f64 = 3.14159e0
+        \\  .pi: f64 = 3.14159
         \\  .rand: u64 = <^[0-9]+$>
         \\  .xtra: u16 = 1571
         ,
@@ -565,15 +565,8 @@ test "snap with timestamp" {
 const CustomStruct = struct {
     foo: u64,
     bar: u66,
-    pub fn format(
-        self: CustomStruct,
-        comptime fmt: []const u8,
-        options: std.fmt.FormatOptions,
-        writer: anytype,
-    ) !void {
+    pub fn format(self: CustomStruct, writer: *std.Io.Writer) !void {
         try writer.print("foo! <<{d}>>, bar! <<{d}>>", .{ self.foo, self.bar });
-        _ = fmt;
-        _ = options;
     }
 };
 

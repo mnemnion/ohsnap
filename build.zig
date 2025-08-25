@@ -39,10 +39,8 @@ pub fn build(b: *std.Build) void {
     // Creates a step for unit testing. This only builds the test executable
     // but does not run it.
     const lib_unit_tests = b.addTest(.{
-        .root_source_file = b.path("src/ohsnap.zig"),
-        .target = target,
-        .optimize = optimize,
-        .filter = b.option([]const u8, "filter", "Filter strings for tests"),
+        .root_module = snap_module,
+        // .filter = b.option([]const u8, "filter", "Filter strings for tests"),
     });
 
     lib_unit_tests.root_module.addOptions("config", options);

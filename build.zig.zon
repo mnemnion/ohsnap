@@ -27,16 +27,16 @@
 
     .dependencies = .{
         .diffz = .{
-            .url = "https://github.com/mnemnion/diffz/archive/refs/tags/v0.0.4-rc1.tar.gz",
-            .hash = "1220806da7bb203c300e373429c915bd6c2a80dde3371b3cfceba6fb091b6fe1b28d",
+            .url = "https://github.com/ion232/diffz/archive/refs/tags/v0.0.5.tar.gz",
+            .hash = "diffz-0.0.1-0-lFG0d1AwD7tOJE9UsK0LRX8KywDKDvAxgIhBkc2f6i",
         },
         .mvzr = .{
-            .url = "https://github.com/mnemnion/mvzr/archive/refs/tags/v0.2.0.tar.gz",
-            .hash = "1220b59a0a73a39e9cd9d0423e6c4c6a3d9260540f599c9846d70242ce5740c49b6e",
+            .url = "https://github.com/ion232/mvzr/archive/refs/tags/v0.3.7.tar.gz",
+            .hash = "mvzr-0.3.6-ZSOkyyBtAQCVjSxDUL7RfLJaAhL-u4wNcj3m9E8ef5PR",
         },
         .pretty = .{
-            .url = "https://github.com/timfayz/pretty/archive/refs/tags/latest.tar.gz",
-            .hash = "pretty-0.10.4-AAAAAM9GAQATvLkzFJ6-Y9r_NWCAC2Q4hOKxHSnJXQLD",
+            .url = "https://github.com/ion232/pretty/archive/refs/tags/latest.tar.gz",
+            .hash = "pretty-0.10.4-Tm65r5pKAQDdxCFNtL6huo7lHc_HWn6v4VO5WaTufpRQ",
         },
     },
     .paths = .{
