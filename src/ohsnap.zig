@@ -24,7 +24,7 @@ const testing = std.testing;
 const assert = std.debug.assert;
 const SourceLocation = std.builtin.SourceLocation;
 
-const Diff = diffz.Diff;
+const Diff = diffz.DiffList;
 const Edit = diffz.Edit;
 
 // Generous limits for user regexen
@@ -99,7 +99,7 @@ pub const Snap = struct {
 
     /// Compare the snapshot with a .fmt printed string.
     pub fn expectEqualFmt(snapshot: *const Snap, args: anytype) !void {
-        const got = try std.fmt.allocPrint(allocator, "{any}", .{args});
+        const got = try std.fmt.allocPrint(allocator, "{f}", .{args});
         defer allocator.free(got);
         try snapshot.diff(got, true);
     }
@@ -141,7 +141,7 @@ pub const Snap = struct {
 
         const dmp = diffz{ .diff_timeout = 0 };
         var diffs = try dmp.diff(allocator, snapshot.text, got, false);
-        defer diffs.deinit(allocator);
+        defer diffz.deinitDiffList(allocator, &diffs);
         if (diffDiffers(diffs) or !test_it) {
             try diffz.diffCleanupSemantic(allocator, &diffs);
             // Check if we have a regex in the snapshot
@@ -234,7 +234,7 @@ pub const Snap = struct {
         snapshot: *const Snap,
         got: []const u8,
     ) !Diff {
-        defer diffs.deinit(allocator);
+        defer diffz.deinitDiffList(allocator, diffs);
         var regex_find = regex_finder.iterator(snapshot.text);
         var diffs_idx: usize = 0;
         var snap_idx: usize = 0;
@@ -339,7 +339,7 @@ pub const Snap = struct {
     fn patchAndUpdate(snapshot: *const Snap, got: []const u8) !void {
         const dmp = diffz{ .diff_timeout = 0, .match_threshold = 0.05 };
         var diffs = try dmp.diff(allocator, snapshot.text, got, false);
-        diffs.deinit(allocator);
+        defer diffz.deinitDiffList(allocator, &diffs);
         // Very similar to `regexFixup`, but here we clean up the diffed region,
         // then add a paired delete/insert, and use it to patch `got`.
         var regex_find = regex_finder.iterator(snapshot.text);
@@ -525,7 +525,7 @@ test "snap regex" {
         \\ohsnap.test.snap regex.RandomField
         \\  .str: []const u8
         \\    "argle<^\w+?$>gle"
-        \\  .pi: f64 = 3.14159e0
+        \\  .pi: f64 = 3.14159
         \\  .rand: u64 = <^[0-9]+$>
         \\  .xtra: u16 = 1571
         ,
@@ -567,13 +567,9 @@ const CustomStruct = struct {
     bar: u66,
     pub fn format(
         self: CustomStruct,
-        comptime fmt: []const u8,
-        options: std.fmt.FormatOptions,
         writer: anytype,
     ) !void {
         try writer.print("foo! <<{d}>>, bar! <<{d}>>", .{ self.foo, self.bar });
-        _ = fmt;
-        _ = options;
     }
 };
 
