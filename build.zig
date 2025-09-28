@@ -36,13 +36,17 @@ pub fn build(b: *std.Build) void {
 
     snap_module.addOptions("config", options);
 
+    const test_filters = b.option(
+        []const []const u8,
+        "test-filter",
+        "Skip tests that do not match any filter",
+    ) orelse &[0][]const u8{};
+
     // Creates a step for unit testing. This only builds the test executable
     // but does not run it.
     const lib_unit_tests = b.addTest(.{
-        .root_source_file = b.path("src/ohsnap.zig"),
-        .target = target,
-        .optimize = optimize,
-        .filter = b.option([]const u8, "filter", "Filter strings for tests"),
+        .root_module = snap_module,
+        .filters = test_filters,
     });
 
     lib_unit_tests.root_module.addOptions("config", options);
@@ -57,12 +61,12 @@ pub fn build(b: *std.Build) void {
         snap_module.addImport("pretty", pretty_dep.module("pretty"));
     }
 
-    if (b.lazyDependency("diffz", .{
+    if (b.lazyDependency("muad_diff", .{
         .target = target,
         .optimize = optimize,
-    })) |diffz_dep| {
-        lib_unit_tests.root_module.addImport("diffz", diffz_dep.module("diffz"));
-        snap_module.addImport("diffz", diffz_dep.module("diffz"));
+    })) |muad_dep| {
+        lib_unit_tests.root_module.addImport("diffz", muad_dep.module("dmp"));
+        snap_module.addImport("diffz", muad_dep.module("dmp"));
     }
 
     if (b.lazyDependency("mvzr", .{
