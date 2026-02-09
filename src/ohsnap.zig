@@ -169,7 +169,16 @@ pub const Snap = struct {
                 },
             );
             if (test_it) {
-                std.debug.print("\n\nTo replace contents, add <!update> as the first line of the snap text.\n", .{});
+                if (snapshot.text.len == 0 or snapshot.text.len == 1 and snapshot.text[0] == '\n') {
+                    std.debug.print("your snap:", .{});
+                    var split = std.mem.splitScalar(u8, got, '\n');
+                    while (split.next()) |line| {
+                        std.debug.print("\n        \\\\{s}", .{line});
+                    }
+                    std.debug.print("\n", .{});
+                } else {
+                    std.debug.print("\n\nTo replace contents, add <!update> as the first line of the snap text.\n", .{});
+                }
                 return try std.testing.expect(false);
             } else return;
         }
@@ -194,11 +203,17 @@ pub const Snap = struct {
 
         const dir_str = maybe_dir_str orelse "src";
 
-        var mod_dir = try std.fs.cwd().openDir(dir_str, .{});
+        var mod_dir = std.fs.cwd().openDir(dir_str, .{}) catch |err| {
+            std.debug.print("Problem opening directory {s}, bailing out\n", .{dir_str});
+            return err;
+        };
         defer mod_dir.close();
 
         const file_text =
-            try mod_dir.readFileAlloc(arena_allocator, snapshot.location.file, 1024 * 1024);
+            mod_dir.readFileAlloc(arena_allocator, snapshot.location.file, 1024 * 1024) catch |err| {
+                std.debug.print("Problem opening file {s}, bailing out\n", .{snapshot.location.file});
+                return err;
+            };
         var file_text_updated = try std.ArrayList(u8).initCapacity(arena_allocator, file_text.len);
 
         const line_zero_based = snapshot.location.line - 1;
@@ -207,7 +222,6 @@ pub const Snap = struct {
         const snapshot_prefix = file_text[0..range.start];
         const snapshot_text = file_text[range.start..range.end];
         const snapshot_suffix = file_text[range.end..];
-
         const indent = getIndent(snapshot_text);
 
         try file_text_updated.appendSlice(arena_allocator, snapshot_prefix);
