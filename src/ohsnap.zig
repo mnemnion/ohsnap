@@ -117,7 +117,7 @@ pub const Snap = struct {
 
     /// Show a diff with the .fmt string without testing.
     pub fn showFmt(snapshot: *const Snap, args: anytype) !void {
-        const got = try std.fmt.allocPrint(allocator, "{any}", .{args});
+        const got = try std.fmt.allocPrint(allocator, "{f}", .{args});
         defer allocator.free(got);
         try snapshot.diff(got, false);
     }
