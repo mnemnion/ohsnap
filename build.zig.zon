@@ -17,7 +17,7 @@
     // This field is optional.
     // This is currently advisory only; Zig does not yet do anything
     // with this value.
-    .minimum_zig_version = "0.15.1",
+    .minimum_zig_version = "0.16.0",
 
     // This field is optional.
     // Each dependency must either provide a `url` and `hash`, or a `path`.
@@ -27,16 +27,19 @@
 
     .dependencies = .{
         .mvzr = .{
-            .url = "https://github.com/mnemnion/mvzr/archive/refs/tags/v0.3.7.tar.gz",
-            .hash = "mvzr-0.3.7-ZSOky5FtAQB2VrFQPNbXHQCFJxWTMAYEK7ljYEaMR6jt",
+            // .url = "https://github.com/mnemnion/mvzr/archive/refs/tags/v0.3.7.tar.gz",
+            // .hash = "mvzr-0.3.7-ZSOky5FtAQB2VrFQPNbXHQCFJxWTMAYEK7ljYEaMR6jt",
+            .path = "../mvzr",
         },
         .pretty = .{
-            .url = "https://github.com/mnemnion/pretty/archive/refs/tags/ohsnap-v0.4.1.tar.gz",
-            .hash = "pretty-0.10.6-Tm65r6lPAQCBxgwzehYPeqsCXQDT9kt2ktJuO-2tRfE6",
+            // .url = "https://github.com/mnemnion/pretty/archive/refs/tags/v0.16.0-compat.tar.gz",
+            // .hash = "pretty-0.10.6-Tm65r6lPAQCBxgwzehYPeqsCXQDT9kt2ktJuO-2tRfE6",
+            .path = "../pretty",
         },
         .muad_diff = .{
-            .url = "https://github.com/mnemnion/muad-diff/archive/refs/tags/ohsnap-prerelease-02.tar.gz",
-            .hash = "muad_diff-0.0.1-p0-XoRGIAwBmN7XLmC4Z6Sj7mqeiUaZvwoisN1hXF81b",
+            // .url = "https://github.com/mnemnion/muad-diff/archive/refs/tags/ohsnap-prerelease-02.tar.gz",
+            // .hash = "muad_diff-0.0.1-p0-XoRGIAwBmN7XLmC4Z6Sj7mqeiUaZvwoisN1hXF81b",
+            .path = "../muad-diff",
         },
     },
     .paths = .{
