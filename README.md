@@ -15,7 +15,7 @@ Let me show you its features!
 The best way to use `ohsnap` is to install it using the [Zig Build System](https://ziglang.org/learn/build-system/).  From your project repo root, use `zig fetch` like this:
 
 ```sh
-zig fetch --save "https://github.com/mnemnion/ohsnap/archive/refs/tags/v0.4.2.tar.gz"
+zig fetch --save "https://github.com/mnemnion/ohsnap/archive/refs/tags/v0.5.0.tar.gz"
 ```
 
 Then add it to your test artifact like so:
@@ -94,7 +94,7 @@ The snaptest will see the `<!update>`, which must be the beginning of the string
 
 If your data structure has a `.format` method, and you'd prefer to use that as a basis, simply use `.expectEqualFmt` instead of `.expectEqual`.
 
-If, down the road, the snapshot doesn't compare to the expected string, `ohsnap` will use [diffz](https://github.com/mnemnion/diffz/tree/more-port)[^1], a Zig port of [diff-match-patch](https://github.com/google/diff-match-patch), to produce a terminal-colored character-level diff of the expected string with the actual string, making it easy to see exactly what's changed.  These changes are either a bug, or a new feature.  If it's the former, fix it, if it's the latter, just add `<!update>` to the head of the string again, and `ohsnap` will oblige.
+If, down the road, the snapshot doesn't compare to the expected string, `ohsnap` will use [muad_diff](https://github.com/mnemnion/muad_diff), a Zig port of [diff-match-patch](https://github.com/google/diff-match-patch), to produce a terminal-colored character-level diff of the expected string with the actual string, making it easy to see exactly what's changed.  These changes are either a bug, or a new feature.  If it's the former, fix it, if it's the latter, just add `<!update>` to the head of the string again, and `ohsnap` will oblige.
 
 ## Pattern-Matching Snapshots
 
@@ -264,8 +264,5 @@ One of the great advantages of snapshot testing is that it's easy, so `ohsnap`, 
 
 It's a new library, but I expect the core interface to remain stable.  It's meant to do one thing, well, and otherwise stay out of the way.  I'm willing to consider suggestions for ways to make `ohsnap` better at what it already does, however.
 
-That said, the regex library `mvzr` is pretty new, and so is the added code in `diffz`, so version-bumps to fix any bugs in those can be expected over time.  The build system doesn't currently do update checks, so you'll need to check for updates manually, for now.
-
 I hope you enjoy it! Test early, test often, and do it the easy way.
 
-[^1]: The link is to a fork of the library which has the necessary changes for terminal printing.  That branch is in code review, and these things take time. `ohsnap` will be updated to fetch from the [main repo](https://github.com/ziglibs/diffz) when that's possible.
