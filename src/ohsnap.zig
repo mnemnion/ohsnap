@@ -42,6 +42,9 @@ comptime {
     }
 }
 
+/// OhSnap specialized to use the default options.
+pub const default = OhSnap(default_pretty_options);
+
 pub const default_pretty_options = pretty.Options{
     .max_depth = 0,
     .struct_max_len = 0,
@@ -536,11 +539,14 @@ test "snap test" {
         \\    .decls: []const builtin.Type.Declaration
         \\      [0]: builtin.Type.Declaration
         \\        .name: [:0]const u8
-        \\          "default_pretty_options"
+        \\          "default"
         \\      [1]: builtin.Type.Declaration
         \\        .name: [:0]const u8
-        \\          "OhSnap"
+        \\          "default_pretty_options"
         \\      [2]: builtin.Type.Declaration
+        \\        .name: [:0]const u8
+        \\          "OhSnap"
+        \\      [3]: builtin.Type.Declaration
         \\        .name: [:0]const u8
         \\          "Snap"
         \\    .is_tuple: bool = false
