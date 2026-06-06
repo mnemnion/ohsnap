@@ -27,7 +27,7 @@
 
     .dependencies = .{
         .pretty = .{
-            .url = "https://github.com/mnemnion/pretty/archive/refs/tags/zig0.16-shim-compat.zip",
+            .url = "https://github.com/mnemnion/pretty/archive/refs/tags/zig0.16-shim-compat.tar.gz",
             .hash = "pretty-0.10.6-Tm65ryN7AQD8lWCN6fUG-yCYLiqo_4Zwq8lFjFln2qw3",
         },
         .mvzr = .{
