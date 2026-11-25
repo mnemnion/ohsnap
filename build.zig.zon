@@ -17,7 +17,7 @@
     // This field is optional.
     // This is currently advisory only; Zig does not yet do anything
     // with this value.
-    .minimum_zig_version = "0.16.0",
+    .minimum_zig_version = "0.17.1",
 
     // This field is optional.
     // Each dependency must either provide a `url` and `hash`, or a `path`.
@@ -27,16 +27,16 @@
 
     .dependencies = .{
         .pretty = .{
-            .url = "https://github.com/mnemnion/pretty/archive/refs/tags/zig0.16-shim-compat.tar.gz",
-            .hash = "pretty-0.10.6-Tm65ryN7AQD8lWCN6fUG-yCYLiqo_4Zwq8lFjFln2qw3",
+            .url = "https://github.com/mnemnion/pretty/archive/refs/tags/v0.17.0-compat.tar.gz",
+            .hash = "pretty-0.10.6-Tm65r4l8AQAKXL7l0N97zOxT2AbrO0vZI1oMpuTOcCx_",
         },
         .mvzr = .{
-            .url = "https://github.com/mnemnion/mvzr/archive/refs/tags/v0.3.9.tar.gz",
-            .hash = "mvzr-0.3.9-ZSOky_lvAQDe3gx6pFgM_NG-jl9NO_83u5OI1MF8-2PC",
+            .url = "https://github.com/mnemnion/mvzr/archive/refs/tags/v0.3.13.tar.gz",
+            .hash = "mvzr-0.3.13-ZSOky_N2AQB5r46kRiE1qakDy1N2u8PfnIR1ht2OkPsw",
         },
         .muad_diff = .{
-            .url = "https://github.com/mnemnion/muad-diff/archive/refs/tags/zig0.16-shim.tar.gz",
-            .hash = "muad_diff-0.0.1-p0-XobS2TgLOmAh3hjEU1k_MdmIeISn2y0U6tYibF4EW",
+            .url = "https://github.com/mnemnion/muad-diff/archive/refs/tags/v0.1.1.tar.gz",
+            .hash = "muad_diff-0.1.1-p0-XoaquUwJuLSWQzWXuAYUHBPoYaKln5FK_SVjK9bgP",
         },
     },
     .paths = .{

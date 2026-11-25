@@ -24,7 +24,7 @@ const testing = std.testing;
 const assert = std.debug.assert;
 const SourceLocation = std.builtin.SourceLocation;
 
-const Diff = @TypeOf(diffz.Diff.default.edits);
+const Diff = @TypeOf(diffz.Diff.empty.edits);
 const Edit = diffz.Edit;
 
 // Generous limits for user regexen
@@ -144,20 +144,16 @@ pub fn Snap(comptime pretty_options: pretty.Options) type {
                 }
             }
 
-            var dmp = diffz.Diff.init(.{
-                .timeout = 0,
-                .edit_cost = diffz.DiffConfig.default.edit_cost,
-                .check_lines = diffz.DiffConfig.default.check_lines,
-                .check_line_threshold = diffz.DiffConfig.default.check_line_threshold,
-            });
+            var differ = diffz.Differ.init(.default);
+            defer differ.deinit(allocator);
+            var dmp = try differ.diff(allocator, snapshot.text, got);
             defer dmp.deinit(allocator);
-            _ = try dmp.diff(allocator, snapshot.text, got);
             var diffs = dmp.edits;
             dmp.edits = .empty;
             defer deinitDiffList(allocator, &diffs);
             if (diffDiffers(diffs) or !test_it) {
-                var cleaned = diffz.Diff{ .config = dmp.config, .edits = diffs };
-                _ = try cleaned.cleanupSemantic(allocator);
+                var cleaned = diffz.Diff{ .edits = diffs };
+                try differ.cleanupSemantic(allocator, &cleaned);
                 diffs = cleaned.edits;
                 cleaned.edits = .empty;
                 // Check if we have a regex in the snapshot
@@ -167,7 +163,7 @@ pub fn Snap(comptime pretty_options: pretty.Options) type {
                     if (test_it)
                         if (!diffDiffers(diffs)) return;
                 }
-                const diff_string = try (diffz.Diff{ .config = dmp.config, .edits = diffs }).prettyFormat(
+                const diff_string = try (diffz.Diff{ .edits = diffs }).prettyFormat(
                     allocator,
                     diffz.DiffDecorations.xterm_classic,
                 );
@@ -284,7 +280,7 @@ pub fn Snap(comptime pretty_options: pretty.Options) type {
                 // Find this location in the got string.
                 const snap_start = found.start;
                 const snap_end = found.end;
-                const diff_obj = diffz.Diff{ .config = diffz.DiffConfig.default, .edits = diffs.* };
+                const diff_obj = diffz.Diff{ .edits = diffs.* };
                 const got_start = diff_obj.index(snap_start);
                 const got_end = diff_obj.index(snap_end);
                 // Check if these are identical (use/mention distinction!)
@@ -378,14 +374,10 @@ pub fn Snap(comptime pretty_options: pretty.Options) type {
         }
 
         fn patchAndUpdate(snapshot: *const Self, got: []const u8) !void {
-            var dmp = diffz.Diff.init(.{
-                .timeout = 0,
-                .edit_cost = diffz.DiffConfig.default.edit_cost,
-                .check_lines = diffz.DiffConfig.default.check_lines,
-                .check_line_threshold = diffz.DiffConfig.default.check_line_threshold,
-            });
+            var differ = diffz.Differ.init(.default);
+            defer differ.deinit(allocator);
+            var dmp = try differ.diff(allocator, snapshot.text, got);
             defer dmp.deinit(allocator);
-            _ = try dmp.diff(allocator, snapshot.text, got);
             // Very similar to `regexFixup`, but here we clean up the diffed region,
             // then add a paired delete/insert, and use it to patch `got`.
             var regex_find = regex_finder.iterator(snapshot.text);
@@ -528,28 +520,28 @@ test "snap test" {
     // Type
     try oh.snap(
         @src(),
-        \\builtin.Type
-        \\  .struct: builtin.Type.Struct
-        \\    .layout: builtin.Type.ContainerLayout
+        \\lang.Type
+        \\  .struct: lang.Type.Struct
+        \\    .is_tuple: bool = false
+        \\    .layout: lang.Type.ContainerLayout
         \\      .auto
         \\    .backing_integer: ?type
         \\      null
-        \\    .fields: []const builtin.Type.StructField
+        \\    .field_names: []const [:0]const u8
         \\      (empty)
-        \\    .decls: []const builtin.Type.Declaration
-        \\      [0]: builtin.Type.Declaration
-        \\        .name: [:0]const u8
-        \\          "default"
-        \\      [1]: builtin.Type.Declaration
-        \\        .name: [:0]const u8
-        \\          "default_pretty_options"
-        \\      [2]: builtin.Type.Declaration
-        \\        .name: [:0]const u8
-        \\          "OhSnap"
-        \\      [3]: builtin.Type.Declaration
-        \\        .name: [:0]const u8
-        \\          "Snap"
-        \\    .is_tuple: bool = false
+        \\    .field_types: []const type
+        \\      (empty)
+        \\    .field_attrs: []const lang.Type.Struct.FieldAttributes
+        \\      (empty)
+        \\    .decl_names: []const [:0]const u8
+        \\      [0]: [:0]const u8
+        \\        "default"
+        \\      [1]: [:0]const u8
+        \\        "default_pretty_options"
+        \\      [2]: [:0]const u8
+        \\        "OhSnap"
+        \\      [3]: [:0]const u8
+        \\        "Snap"
         ,
     ).expectEqual(@typeInfo(@This()));
 }
